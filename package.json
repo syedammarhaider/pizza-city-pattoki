@@ -1,0 +1,9 @@
+{
+  "name": "pizza-city-pos",
+  "version": "4.0.0",
+  "description": "Pizza City POS - offline, permanent data",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" },
+  "private": true
+}

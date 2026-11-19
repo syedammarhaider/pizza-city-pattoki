@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pizza City – POS</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2716%27 fill=%27%23e8452c%27/%3E%3Cpath d=%27M6 11c7-5 13-5 20 0L16 27z%27 fill=%27%23ffc93c%27/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#0f0a08; --panel:#1c1310; --panel2:#261a14; --panel-grad-end:#190e0a;
+  --line:#3d2b22; --red:#e8452c; --red2:#ff6a4d; --gold:#ffc93c; --gold-text:#ffc93c;
+  --green:#4caf6a; --text:#f5ece3; --muted:#b8a294;
+  --topbar-bg:rgba(15,10,8,.92); --input-bg:rgba(0,0,0,.4); --seg-bg:rgba(0,0,0,.35);
+  --tag-bg:rgba(0,0,0,.4); --glow-red:rgba(232,69,44,.14); --glow-gold:rgba(255,201,60,.09);
+}
+html.light{
+  --bg:#f4ece3; --panel:#ffffff; --panel2:#f8f1e9; --panel-grad-end:#fdf9f4;
+  --line:#e0d0bf; --red:#c9341f; --red2:#e8452c; --gold:#c98a00; --gold-text:#8a5b00;
+  --green:#2e8a4a; --text:#2a1a10; --muted:#6d5545;
+  --topbar-bg:rgba(244,236,227,.95); --input-bg:rgba(255,255,255,.9); --seg-bg:rgba(0,0,0,.05);
+  --tag-bg:rgba(0,0,0,.07); --glow-red:rgba(232,69,44,.10); --glow-gold:rgba(201,138,0,.12);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:"Segoe UI",system-ui,Arial,sans-serif;min-height:100vh;
+  background-image:radial-gradient(ellipse at 10% 5%,var(--glow-red),transparent 40%),
+  radial-gradient(ellipse at 90% 90%,var(--glow-gold),transparent 42%);background-attachment:fixed}
+button{font-family:inherit;cursor:pointer;border:none;color:inherit}
+.hide{display:none!important}
+
+/* ===== Header ===== */
+.topbar{position:sticky;top:0;z-index:30;background:var(--topbar-bg);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:10px 18px;flex-wrap:wrap}
+.topbar::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;pointer-events:none;
+  background:linear-gradient(90deg,transparent,var(--red),var(--gold),var(--red),transparent);opacity:.85}
+.brand{display:flex;align-items:center;gap:12px}
+.badge{width:46px;height:46px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;
+  background:radial-gradient(circle at 30% 25%,var(--red2),var(--red) 60%,#7a1a0a);
+  box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--gold),0 6px 18px var(--glow-red)}
+.badge svg{width:28px;height:28px}
+.brand-name{font-size:20px;font-weight:900;letter-spacing:3px;line-height:1}
+.brand-tag{font-size:10px;letter-spacing:1.4px;color:var(--gold-text);margin-top:5px;text-transform:uppercase;max-width:215px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dock{display:flex;gap:2px;background:var(--seg-bg);border:1px solid var(--line);border-radius:99px;padding:4px}
+.tab{display:flex;align-items:center;gap:6px;background:transparent;color:var(--muted);padding:8px 12px;
+  border-radius:99px;font-size:13px;font-weight:600;transition:.18s}
+.tab svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.tab:hover{color:var(--text)}
+.tab.on{background:linear-gradient(135deg,var(--red),var(--red2));color:#fff;box-shadow:0 4px 14px var(--glow-red)}
+.tab .lk{width:11px;height:11px;opacity:.75;display:none}
+body.is-locked .tab[data-protected] .lk{display:inline}
+.sp{flex:1}
+.today{display:flex;align-items:center;gap:9px;background:linear-gradient(135deg,var(--panel2),var(--panel));
+  border:1px solid var(--line);border-radius:14px;padding:6px 12px}
+.today .tn{font-size:22px;font-weight:900;color:var(--gold-text);line-height:1;min-width:14px;text-align:center}
+.today .tl{font-size:9px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);line-height:1.25}
+.today .ta{font-size:13px;font-weight:800;border-left:1px solid var(--line);padding-left:10px;white-space:nowrap}
+.chip{display:flex;align-items:center;gap:7px;background:var(--panel2);border:1px solid var(--line);
+  color:var(--text);padding:7px 12px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap}
+.chip i{width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0}
+#statusBtn[data-s=ok] i{background:var(--green);animation:pulse 1.8s infinite}
+#statusBtn[data-s=error] i{background:var(--red)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(76,175,106,.6)}70%{box-shadow:0 0 0 7px rgba(76,175,106,0)}100%{box-shadow:0 0 0 0 rgba(76,175,106,0)}}
+.chip svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#lockBtn[data-s=locked]{border-color:var(--red);color:var(--red2)}
+#lockBtn[data-s=open]{border-color:var(--green);color:var(--green)}
+#lockBtn .ic-open{display:none}
+#lockBtn[data-s=open] .ic-open{display:inline}
+#lockBtn[data-s=open] .ic-closed{display:none}
+#lockTxt{font-variant-numeric:tabular-nums}
+
+.view{display:none;max-width:1340px;margin:0 auto;padding:18px 18px 70px}
+.view.on{display:block}
+.cgrid{display:grid;grid-template-columns:1.35fr 1fr;gap:18px}
+@media(max-width:980px){.cgrid{grid-template-columns:1fr}}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:820px){.g2{grid-template-columns:1fr}}
+
+.card{background:linear-gradient(160deg,var(--panel) 0%,var(--panel-grad-end) 110%);
+  border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px}
+.card-hd{font-size:11px;text-transform:uppercase;letter-spacing:1.6px;color:var(--gold-text);
+  display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.card-hd .n{background:var(--red);color:#fff;width:20px;height:20px;border-radius:50%;
+  display:inline-grid;place-items:center;font-size:11px}
+.card-hd small{margin-left:auto;color:var(--muted);text-transform:none;letter-spacing:0;font-size:12px}
+
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+input,textarea,select{width:100%;background:var(--input-bg);border:1px solid var(--line);
+  color:var(--text);padding:9px 11px;border-radius:10px;font-size:14px;font-family:inherit}
+input:focus,textarea:focus,select:focus{outline:2px solid var(--gold);border-color:transparent}
+.row{display:grid;gap:9px}.r2{grid-template-columns:1fr 1fr}.mt{margin-top:10px}
+
+.btn{background:var(--red);color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;font-weight:700}
+.btn:hover{background:var(--red2)}
+.btn.g{background:var(--green)}.btn.g:hover{background:#3fa05c}
+.btn.o{background:var(--panel2);border:1px solid var(--line);color:var(--text);font-weight:500}
+.btn.o:hover{border-color:var(--gold)}
+.btn.sm{padding:6px 11px;font-size:12px}
+.btn.dn{background:transparent;border:1px solid var(--red);color:var(--red2);font-weight:600}
+.btn.dn:hover{background:var(--red);color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+.seg{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
+.seg button{flex:1;background:var(--seg-bg);border:1px solid var(--line);color:var(--text);
+  padding:8px;border-radius:10px;font-size:13px;min-width:60px}
+.seg button.on{background:var(--gold);color:#1a0f00;border-color:var(--gold);font-weight:700}
+
+.cat-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.cat-btn{background:var(--panel2);border:1px solid var(--line);color:var(--muted);
+  padding:6px 15px;border-radius:99px;font-size:12px;cursor:pointer}
+.cat-btn.on{background:var(--red);border-color:var(--red);color:#fff;font-weight:700}
+
+.menu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:12px}
+.menu-card{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:14px;
+  text-align:left;cursor:pointer;color:var(--text)}
+.menu-card:hover{border-color:var(--gold)}
+.mc-name{font-size:15px;font-weight:700;margin-bottom:8px}
+.mc-prices{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.mc-sz{font-size:12.5px;background:var(--seg-bg);border:1px solid var(--line);border-radius:7px;
+  padding:4px 9px;color:var(--gold-text);cursor:pointer;font-weight:600}
+.mc-sz:hover,.mc-sz.on{background:var(--gold);color:#1a0f00}
+.mc-single-price{font-size:18px;font-weight:800;color:var(--gold-text);margin-top:6px}
+.mc-desc{font-size:12px;color:var(--muted);margin-top:4px;white-space:pre-line}
+
+.drinks-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:8px}
+.drink-btn{background:var(--panel2);border:1px solid var(--line);border-radius:12px;
+  padding:10px 6px;color:var(--text);display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer}
+.drink-btn:hover{border-color:var(--gold)}
+.db-size{font-size:12px;font-weight:700}
+.db-price{font-size:11px;color:var(--gold-text);font-weight:700}
+
+.cart-table{width:100%;border-collapse:collapse;font-size:13px}
+.cart-table thead th{padding:7px 3px;border-bottom:2px solid var(--line);color:var(--muted);
+  font-size:11px;text-transform:uppercase;letter-spacing:.8px;text-align:left}
+.cart-table thead th:nth-child(2){text-align:center}
+.cart-table thead th:nth-child(3){text-align:right}
+.cart-table td{padding:8px 3px;border-bottom:1px dashed var(--line);vertical-align:top}
+.cart-item-name{font-weight:600}
+.cart-size{color:var(--gold-text);font-size:11px;font-weight:700}
+.qty-ctrl{display:flex;align-items:center;gap:5px}
+.qty-ctrl button{background:var(--panel2);border:1px solid var(--line);width:26px;height:26px;border-radius:50%;font-size:16px}
+.qty-ctrl span{min-width:22px;text-align:center;font-weight:700}
+.del-btn{background:none;color:var(--red2);font-size:18px;padding:0 4px}
+.empty-cart{color:var(--muted);text-align:center;padding:20px 0;font-size:13px}
+
+.totals{margin-top:10px}
+.tot-line{display:flex;justify-content:space-between;font-size:14px;padding:3px 0}
+.tot-line.grand{font-size:24px;font-weight:800;color:var(--gold-text);border-top:2px dashed var(--line);padding-top:10px;margin-top:5px}
+
+/* ===== Receipt (modern, thermal friendly black & white) ===== */
+.rc{--ink:#111;background:#fff;color:var(--ink);width:100%;max-width:330px;margin:0 auto;padding:16px 14px 18px;
+  font-family:"Segoe UI",system-ui,Arial,sans-serif;font-size:12px;line-height:1.35;position:relative;border-radius:6px;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact}
+.rc-screen{box-shadow:0 8px 28px rgba(0,0,0,.35);margin-bottom:12px}
+.rc-screen::after{content:"";position:absolute;left:0;right:0;bottom:-8px;height:8px;
+  background:linear-gradient(135deg,#fff 4px,transparent 0) 0 0/12px 8px,linear-gradient(225deg,#fff 4px,transparent 0) 0 0/12px 8px}
+.rc *{box-sizing:border-box}
+.rc-head{text-align:center}
+.rc-mark{width:34px;height:34px;margin:0 auto 4px;display:block}
+.rc-shop{font-size:24px;font-weight:900;letter-spacing:4px;line-height:1.05;text-transform:uppercase}
+.rc-tag{margin-top:5px;font-size:9.5px;letter-spacing:1.6px;text-transform:uppercase;font-weight:700}
+.rc-sub{font-size:10.5px;margin-top:2px}
+.rc-dbl{border:none;border-top:3px double var(--ink);margin:9px 0}
+.rc-dash{border:none;border-top:1px dashed #666;margin:8px 0}
+.rc-top{display:flex;gap:10px;align-items:stretch}
+.rc-token{background:var(--ink);color:#fff;border-radius:8px;min-width:78px;padding:6px 8px;text-align:center;display:flex;flex-direction:column;justify-content:center}
+.rc-token small{font-size:8.5px;letter-spacing:2.4px;font-weight:700}
+.rc-token b{font-size:34px;font-weight:900;line-height:1}
+.rc-meta{flex:1;display:flex;flex-direction:column;justify-content:center;gap:2px}
+.rc-meta div{display:flex;justify-content:space-between;gap:6px}
+.rc-meta span{font-size:9px;letter-spacing:1.4px;font-weight:700;opacity:.7;align-self:center}
+.rc-meta b{font-size:12px}
+.rc-type{text-align:center;margin:9px 0 7px}
+.rc-type span{display:inline-block;border:2px solid var(--ink);border-radius:99px;padding:3px 14px;font-weight:800;
+  font-size:11px;letter-spacing:2px;text-transform:uppercase}
+.rc-box{border:1px solid var(--ink);border-radius:8px;padding:6px 9px;margin-bottom:8px}
+.rc-kv{display:flex;justify-content:space-between;gap:8px;padding:1px 0}
+.rc-kv span:first-child{opacity:.75}
+.rc-kv b{text-align:right;word-break:break-word}
+.rc-addr{display:block}
+.rc-addr b{display:block;text-align:left;margin-top:1px}
+.rc-th{display:flex;justify-content:space-between;font-size:9px;letter-spacing:2px;font-weight:800;
+  border-bottom:2px solid var(--ink);padding-bottom:3px;margin-bottom:4px}
+.rc-it{padding:4px 0;border-bottom:1px dotted #888}
+.rc-it:last-child{border-bottom:none}
+.rc-it-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.rc-it-name{font-weight:700;font-size:12.5px}
+.rc-sz{display:inline-block;font-style:normal;font-size:9.5px;font-weight:800;background:var(--ink);color:#fff;border-radius:4px;
+  padding:0 5px;margin-left:4px;vertical-align:1px}
+.rc-it-top b{white-space:nowrap;font-size:12.5px}
+.rc-it-sub{font-size:10.5px;opacity:.75;padding-left:1px}
+.rc-sum{margin-top:6px}
+.rc-total{display:flex;justify-content:space-between;align-items:center;background:var(--ink);color:#fff;border-radius:8px;
+  padding:7px 11px;margin:8px 0 6px}
+.rc-total span{font-size:11px;letter-spacing:3px;font-weight:800}
+.rc-total b{font-size:20px;font-weight:900}
+.rc-pay{display:inline-block;border:1.5px solid var(--ink);border-radius:5px;padding:0 7px;font-size:10px;font-weight:800;letter-spacing:1.2px}
+.rc-note{border-left:3px solid var(--ink);padding:2px 8px;margin:7px 0;font-size:11px}
+.rc-cancel{border:2px solid var(--ink);text-align:center;font-weight:900;letter-spacing:4px;padding:4px;margin:8px 0;border-radius:6px}
+.rc-cut{display:flex;align-items:center;gap:6px;margin:10px 0 7px;font-size:13px}
+.rc-cut::before,.rc-cut::after{content:"";flex:1;border-top:1.5px dashed #555}
+.rc-thanks{text-align:center;font-weight:800;font-size:12px;letter-spacing:.3px}
+.rc-bars{display:block;margin:8px auto 3px;height:26px;width:70%}
+.rc-credit{text-align:center;font-size:9px;letter-spacing:.8px;opacity:.65;margin-top:3px}
+.rc.rc-58{font-size:11px;padding:10px 8px 12px}
+.rc-58 .rc-shop{font-size:19px;letter-spacing:2.5px}
+.rc-58 .rc-token{min-width:60px}.rc-58 .rc-token b{font-size:28px}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
+.kpi{background:linear-gradient(135deg,var(--panel2),var(--panel));border:1px solid var(--line);
+  border-radius:14px;padding:14px 16px}
+.kpi small{color:var(--muted);text-transform:uppercase;letter-spacing:1.1px;font-size:10px;font-weight:600}
+.kpi b{display:block;font-size:26px;margin:3px 0;color:var(--gold-text)}
+
+.hist-table{width:100%;border-collapse:collapse;font-size:12px}
+.hist-table thead th{text-align:left;color:var(--muted);font-weight:600;padding:9px 6px;
+  border-bottom:2px solid var(--line);font-size:11px;text-transform:uppercase}
+.hist-table td{padding:8px 6px;border-bottom:1px dashed var(--line);vertical-align:top}
+.tag{display:inline-block;font-size:10px;background:var(--tag-bg);border:1px solid var(--line);
+  border-radius:99px;padding:1px 7px;color:var(--muted)}
+.tag.delivery{color:var(--gold-text);border-color:var(--gold)}
+.tag.takeaway{color:var(--green);border-color:var(--green)}
+.tag.dinein{color:var(--red2);border-color:var(--red2)}
+.tag.void{color:var(--red);border-color:var(--red)}
+
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(16px);
+  background:var(--green);color:#fff;padding:10px 22px;border-radius:99px;opacity:0;
+  transition:.3s;pointer-events:none;z-index:199;font-weight:600;font-size:13px}
+.toast.on{opacity:1;transform:translateX(-50%)}
+.toast.err{background:var(--red)}
+
+/* ===== Overlays ===== */
+.overlay{position:fixed;inset:0;display:none;place-items:center;background:rgba(0,0,0,.75)}
+#loginOverlay{z-index:150;background:rgba(0,0,0,.88);backdrop-filter:blur(4px)}
+#orderModal{z-index:80}
+#itemModal{z-index:70}
+.login-box{background:var(--panel);border:2px solid var(--gold);border-radius:20px;padding:28px;max-width:360px;width:90vw;text-align:center}
+.login-box h2{font-size:22px;margin-bottom:6px;color:var(--gold-text)}
+.pw-wrap{position:relative;margin-bottom:14px}
+.pw-wrap input{padding-right:46px}
+.pw-eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:transparent;color:var(--muted);
+  width:36px;height:36px;border-radius:8px;display:grid;place-items:center}
+.pw-eye:hover{color:var(--text)}
+.pw-eye svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.pin-input{font-size:18px;text-align:center;letter-spacing:2px;background:var(--input-bg);
+  border:2px solid var(--line);color:var(--text);padding:12px 46px 12px 12px;border-radius:12px;width:100%}
+.om-box{background:var(--panel);border:2px solid var(--gold);border-radius:18px;padding:18px;max-width:420px;width:94vw;
+  max-height:92vh;display:flex;flex-direction:column}
+.om-hd{display:flex;align-items:center;margin-bottom:12px}
+.om-hd h3{flex:1;font-size:16px}
+.om-body{overflow-y:auto;padding:4px 2px 14px;background:var(--panel2);border-radius:12px;margin-bottom:12px}
+.om-body .rc{margin-top:10px}
+
+#printArea{display:none}
+@media print{
+  @page{margin:0}
+  html,body{background:#fff!important;margin:0!important;padding:0!important}
+  body>*:not(#printArea){display:none!important}
+  #printArea{display:block!important}
+  #printArea .rc{margin:0;box-shadow:none;border-radius:0;padding:2mm 2.5mm 4mm;max-width:none}
+  #printArea .rc::after{display:none}
+}
+
+.section-sep{border:none;border-top:1px dashed var(--line);margin:14px 0}
+.flex-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.srow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+@media(max-width:600px){.srow{grid-template-columns:1fr}}
+.dev-credit{text-align:center;font-size:11px;color:var(--muted);padding:8px;border-top:1px dashed var(--line);margin-top:12px}
+.mm-item{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;
+  background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px}
+.mm-item b{font-size:13px}.mm-item span{font-size:11px;color:var(--muted)}
+.fld-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:3px}
+.fld-head label{margin:0}
+.chk{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--gold-text);cursor:pointer;margin:0;white-space:nowrap}
+.chk input{width:auto;accent-color:var(--red)}
+.note{font-size:12px;color:var(--muted);margin-bottom:10px}
+.locked-note{text-align:center;color:var(--muted);padding:60px 0;font-size:14px}
+
+/* ================= v4 enhancements (appended; overrides above) ================= */
+:root{color-scheme:dark;--lift:0 12px 28px rgba(0,0,0,.55);--focus:rgba(255,201,60,.28);--shine:rgba(255,255,255,.16);
+  --row-hover:rgba(255,201,60,.08);--deal-a:#e8452c;--deal-b:#ff8a3d}
+html.light{color-scheme:light;--lift:0 12px 26px rgba(120,70,30,.22);--focus:rgba(201,138,0,.30);--shine:rgba(255,255,255,.6);
+  --row-hover:rgba(201,138,0,.10);--deal-a:#c9341f;--deal-b:#e0701c}
+
+/* smooth theme + hover transitions everywhere */
+body,.card,.topbar,input,textarea,select,.menu-card,.kpi,.mm-item,.chip,.today,.dock,.seg button,.cat-btn,.btn,
+.drink-btn,.mc-sz,.login-box,.om-box,.tag,.hist-table tr,.qty-ctrl button,.del-btn,.pw-eye{
+  transition:background-color .28s ease,color .28s ease,border-color .28s ease,box-shadow .28s ease,transform .22s ease,opacity .22s ease}
+.tab{transition:background-color .25s ease,color .25s ease,box-shadow .25s ease,transform .2s ease}
+::placeholder{color:var(--muted);opacity:.75}
+select option{background:var(--panel);color:var(--text)}
+input:focus,textarea:focus,select:focus{box-shadow:0 0 0 4px var(--focus)}
+input[type=checkbox]{accent-color:var(--red)}
+
+/* buttons */
+.btn{position:relative;overflow:hidden}
+.btn::after{content:"";position:absolute;top:0;left:-70%;width:45%;height:100%;pointer-events:none;
+  background:linear-gradient(100deg,transparent,var(--shine),transparent);transform:skewX(-20deg);transition:left .6s ease}
+.btn:hover:not(:disabled)::after{left:135%}
+.btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 8px 18px var(--glow-red)}
+.btn:active:not(:disabled){transform:translateY(0) scale(.97)}
+.btn.sm:hover:not(:disabled){transform:translateY(-1px)}
+.btn.o:hover:not(:disabled){background:var(--panel);color:var(--gold-text)}
+.btn.dn:hover:not(:disabled){box-shadow:0 8px 18px var(--glow-red)}
+.seg button:hover{border-color:var(--gold);transform:translateY(-1px)}
+.seg button.on:hover{background:var(--gold);color:#1a0f00}
+.cat-btn:hover{color:var(--text);border-color:var(--gold);transform:translateY(-1px)}
+.cat-btn.on:hover{color:#fff;border-color:var(--red)}
+.tab:not(.on):hover{color:var(--text);background:var(--tag-bg);transform:translateY(-1px)}
+.tab.on:hover{box-shadow:0 6px 18px var(--glow-red);transform:translateY(-1px)}
+.chip:hover{border-color:var(--gold);transform:translateY(-1px)}
+.today:hover{border-color:var(--gold)}
+.card:hover{border-color:var(--gold)}
+.kpi:hover{transform:translateY(-3px);box-shadow:var(--lift);border-color:var(--gold)}
+.mm-item:hover{border-color:var(--gold);transform:translateX(3px)}
+.hist-table tbody tr:hover{background:var(--row-hover)}
+.qty-ctrl button:hover{background:var(--gold);color:#1a0f00;border-color:var(--gold);transform:scale(1.12)}
+.del-btn:hover{transform:scale(1.25);color:var(--red)}
+.drink-btn:hover{transform:translateY(-3px);border-color:var(--gold);box-shadow:var(--lift)}
+.drink-btn:active{transform:scale(.96)}
+.pw-eye:hover{background:var(--tag-bg)}
+
+/* menu cards */
+.menu-card{position:relative;overflow:hidden}
+.menu-card::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;transform:scaleX(0);transform-origin:left;
+  background:linear-gradient(90deg,var(--red),var(--gold));transition:transform .35s ease}
+.menu-card:hover{transform:translateY(-4px);border-color:var(--gold);box-shadow:var(--lift)}
+.menu-card:hover::before{transform:scaleX(1)}
+.mc-sz{transition:background-color .2s,color .2s,transform .2s,box-shadow .2s}
+.mc-sz:hover{transform:scale(1.07);box-shadow:0 4px 12px var(--glow-red)}
+.mc-sz:active{transform:scale(.95)}
+.deal-card{background:linear-gradient(160deg,var(--panel2),var(--panel));border-color:var(--gold)}
+.dl-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.dl-pill{flex-shrink:0;font-size:9px;letter-spacing:1.6px;font-weight:800;color:#fff;border-radius:99px;padding:3px 9px;
+  background:linear-gradient(90deg,var(--deal-a),var(--deal-b));box-shadow:0 3px 10px var(--glow-red)}
+.dl-list{list-style:none;margin:4px 0 2px}
+.dl-list li{position:relative;font-size:12px;color:var(--muted);padding:2px 0 2px 17px}
+.dl-list li::before{content:"\2713";position:absolute;left:0;top:1px;color:var(--green);font-weight:900}
+.deal-card:hover .dl-pill{transform:scale(1.08)}
+.dl-pill{transition:transform .2s ease}
+
+/* deals banner (software by Ammar) */
+.deal-banner{position:relative;overflow:hidden;display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 12px;
+  padding:9px 12px;border-radius:12px;border:1px dashed var(--gold);background:linear-gradient(100deg,var(--panel2),var(--panel))}
+.deal-banner::after{content:"";position:absolute;top:0;bottom:0;left:-40%;width:30%;pointer-events:none;
+  background:linear-gradient(100deg,transparent,var(--shine),transparent);transform:skewX(-20deg);animation:sweep 5s ease-in-out infinite}
+.dl-hot{font-size:10px;font-weight:900;letter-spacing:2.4px;color:#fff;border-radius:8px;padding:4px 10px;
+  background:linear-gradient(90deg,var(--deal-a),var(--deal-b));animation:hotPulse 2s ease-in-out infinite}
+.dl-by{font-size:12px;color:var(--muted);letter-spacing:.4px}
+.dl-by b{color:var(--gold-text);letter-spacing:2px;text-transform:uppercase}
+.dl-by a{color:var(--text);font-weight:800;letter-spacing:1.5px;text-decoration:none;border-bottom:1px dashed var(--gold)}
+.dl-by a:hover{color:var(--gold-text)}
+
+/* cart extra topping row */
+.top-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:5px}
+.top-row .tl{font-size:11px;color:var(--muted)}
+.top-row .tc{font-size:11px;font-weight:800;color:var(--gold-text);border:1px dashed var(--gold);border-radius:6px;padding:0 6px}
+.top-row .ts{font-size:11px;font-weight:800;color:var(--green)}
+.order-actions{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1.15fr) auto;gap:8px}
+.order-actions .btn{min-height:44px;padding:10px 12px;font-weight:700;white-space:nowrap}
+.order-actions #btnSaveOnly{border-color:var(--gold);color:var(--gold-text)}
+.order-actions #btnClear{min-width:76px;border-color:var(--red);color:var(--red2);font-weight:700}
+.order-actions #btnClear:hover{background:var(--red);color:#fff}
+@media(max-width:480px){
+  .order-actions{grid-template-columns:minmax(0,1fr) 86px}
+  .order-actions #btnPrint{grid-column:1/-1}
+}
+
+/* ===== animated logo / name (top-left) ===== */
+.logo-wrap{position:relative;width:54px;height:54px;display:grid;place-items:center;flex-shrink:0}
+.logo-wrap .badge{position:relative;z-index:2;animation:bob 3.4s ease-in-out infinite}
+.logo-wrap:hover .badge{animation:spinOnce .9s ease}
+.orbit{position:absolute;inset:-1px;border-radius:50%;border:2px dashed var(--gold);opacity:.9;animation:spin 10s linear infinite;z-index:1}
+.orbit::after{content:"";position:absolute;top:-6px;left:50%;width:9px;height:9px;margin-left:-4.5px;border-radius:50%;
+  background:var(--red2);box-shadow:0 0 10px 3px var(--red2)}
+.spark{position:absolute;z-index:3;width:8px;height:8px;background:var(--gold);animation:twinkle 2.2s ease-in-out infinite;
+  clip-path:polygon(50% 0,62% 38%,100% 50%,62% 62%,50% 100%,38% 62%,0 50%,38% 38%)}
+.spark.s1{top:-7px;left:-7px}
+.spark.s2{top:0;right:-9px;width:6px;height:6px;animation-delay:.8s}
+.spark.s3{bottom:-5px;left:-9px;width:6px;height:6px;animation-delay:1.5s}
+.steam{position:absolute;z-index:1;top:-6px;width:3px;height:13px;border-radius:3px;opacity:0;
+  background:linear-gradient(to top,var(--gold),transparent);animation:steam 2.8s ease-in infinite}
+.steam.t1{left:17px}.steam.t2{left:26px;animation-delay:.9s}.steam.t3{left:35px;animation-delay:1.8s}
+.brand-name{background:linear-gradient(100deg,var(--text) 0%,var(--text) 40%,var(--red2) 47%,var(--gold-text) 53%,var(--text) 60%,var(--text) 100%);
+  background-size:260% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;
+  animation:shimmer 4.6s linear infinite}
+
+/* ===== admin profile chip (right) ===== */
+#lockBtn{padding:4px 14px 4px 4px;gap:9px;color:var(--text)}
+#lockBtn .avatar{position:relative;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;flex-shrink:0;
+  background:radial-gradient(circle at 30% 25%,var(--red2),var(--red));transition:background .3s}
+#lockBtn .avatar svg{width:15px;height:15px;stroke:#fff;fill:none}
+#lockBtn[data-s=open] .avatar{background:radial-gradient(circle at 30% 25%,#7be09a,var(--green))}
+#lockBtn[data-s=locked] .avatar::after{content:"";position:absolute;inset:-3px;border-radius:50%;border:2px solid var(--red2);
+  opacity:0;animation:ringPulse 2.2s ease-out infinite}
+#lockBtn .pf{display:flex;flex-direction:column;line-height:1.15;text-align:left}
+#lockBtn .pf b{font-size:12px;color:var(--text)}
+#lockBtn .pf small{font-size:10px;letter-spacing:.9px;text-transform:uppercase;font-weight:700}
+#lockBtn[data-s=locked] .pf small{color:var(--red2)}
+#lockBtn[data-s=open] .pf small{color:var(--green)}
+#lockBtn:hover{box-shadow:0 6px 16px var(--glow-red)}
+
+/* ===== unlock popup (slides in from the LEFT) ===== */
+#loginOverlay{place-items:stretch start;background:rgba(0,0,0,.72)}
+html.light #loginOverlay{background:rgba(45,28,16,.5)}
+.login-box{width:min(390px,92vw);max-width:none;height:100%;border:none;border-right:3px solid var(--gold);
+  border-radius:0 26px 26px 0;padding:30px 28px;display:flex;flex-direction:column;justify-content:center;
+  background:linear-gradient(170deg,var(--panel2),var(--panel));box-shadow:18px 0 50px rgba(0,0,0,.45);
+  animation:drawerIn .42s cubic-bezier(.2,.85,.25,1) both;position:relative;overflow:hidden}
+.login-box::before{content:"";position:absolute;left:0;right:0;top:0;height:4px;
+  background:linear-gradient(90deg,var(--red),var(--gold),var(--red));background-size:200% 100%;animation:flow 3s linear infinite}
+.login-box h2{letter-spacing:1px}
+.lb-badge{position:relative}
+.lb-badge::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid var(--gold);opacity:0;animation:ringPulse 2.2s ease-out infinite}
+.pin-input:focus{border-color:var(--gold);outline:none;box-shadow:0 0 0 4px var(--focus)}
+
+/* ===== receipt: ITEM | QTY | AMOUNT ===== */
+.rc-th{display:grid;grid-template-columns:1fr 34px 64px;gap:4px;justify-content:normal}
+.rc-th span:nth-child(2){text-align:center}
+.rc-th span:last-child{text-align:right}
+.rc-row{display:grid;grid-template-columns:1fr 34px 64px;gap:4px;align-items:start}
+.rc-row .q{text-align:center;font-weight:800;font-size:12.5px}
+.rc-row .a{text-align:right;font-weight:800;white-space:nowrap;font-size:12.5px}
+.rc-58 .rc-th,.rc-58 .rc-row{grid-template-columns:1fr 26px 52px}
+.rc-dl{padding-left:2px;white-space:normal}
+.rc-tp{font-weight:700;opacity:1}
+.rc-sum-h{font-size:9px;letter-spacing:2px;font-weight:800;opacity:.7}
+
+/* barcode */
+.rc-bc{position:relative;width:80%;margin:5px auto 0;padding-top:0}
+.rc-bc .rc-bars{width:100%;height:24px;margin:0}
+.rc-bc-num{text-align:center;font-family:Consolas,"Courier New",monospace;font-size:9px;font-weight:800;letter-spacing:1px;margin-top:1px}
+.rc-scan{position:absolute;left:-4%;right:-4%;top:2px;height:2px;border-radius:2px;background:#e8452c;
+  box-shadow:0 0 8px 2px rgba(232,69,44,.65);animation:scan 2.2s ease-in-out infinite alternate;pointer-events:none}
+.om-body .rc-bars rect{transform-box:fill-box;transform-origin:bottom;animation:barUp .5s ease-out both}
+
+/* receipt credit */
+.rc-cr{margin:5px 6px 0;border:1px solid var(--ink);border-radius:6px;padding:3px 4px;text-align:center;
+  font-size:9px;font-weight:700;letter-spacing:.3px;white-space:nowrap}
+.rc-cr b{font-size:inherit;font-weight:900;letter-spacing:.8px;text-transform:uppercase}
+.rc-cr span{margin-left:2px;font-family:inherit;font-size:inherit;font-weight:800;letter-spacing:inherit}
+
+/* developer credit pill (settings / menu / counter) */
+.dev-credit{border-top:none;padding:14px 8px 4px}
+.dc-pill{display:inline-flex;align-items:center;gap:9px;padding:7px 16px;border-radius:99px;font-size:12px;letter-spacing:.6px;
+  color:var(--text);background:linear-gradient(100deg,var(--panel2),var(--panel));border:1px solid var(--gold);
+  box-shadow:0 4px 14px var(--glow-red);transition:transform .25s ease,box-shadow .25s ease}
+.dc-pill:hover{transform:translateY(-2px);box-shadow:0 10px 22px var(--glow-red)}
+.dc-pill strong{color:var(--gold-text);letter-spacing:3px;text-transform:uppercase}
+.dc-pill a{color:var(--text);font-weight:800;letter-spacing:1.5px;text-decoration:none}
+.dc-dot{width:8px;height:8px;border-radius:50%;background:var(--red2);animation:pulse2 1.8s ease-in-out infinite}
+.dc-sep{width:1px;height:14px;background:var(--line)}
+
+/* print: no animations / scan line */
+@media print{
+  #printArea .rc-scan{display:none!important}
+  #printArea *{animation:none!important;transition:none!important}
+  #printArea .rc-bars rect{transform:none!important}
+}
+
+/* keyframes */
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px) rotate(-3deg)}}
+@keyframes spinOnce{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+@keyframes twinkle{0%,100%{transform:scale(.3) rotate(0);opacity:.2}50%{transform:scale(1.15) rotate(90deg);opacity:1}}
+@keyframes steam{0%{transform:translateY(8px) scaleY(.5);opacity:0}30%{opacity:.9}100%{transform:translateY(-10px) scaleY(1.3);opacity:0}}
+@keyframes shimmer{0%{background-position:150% 0}100%{background-position:-60% 0}}
+@keyframes ringPulse{0%{transform:scale(.85);opacity:.9}100%{transform:scale(1.5);opacity:0}}
+@keyframes drawerIn{from{transform:translateX(-105%);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes flow{to{background-position:200% 0}}
+@keyframes sweep{0%,60%{left:-40%}100%{left:130%}}
+@keyframes hotPulse{0%,100%{box-shadow:0 0 0 0 rgba(232,69,44,.55)}50%{box-shadow:0 0 0 7px rgba(232,69,44,0)}}
+@keyframes scan{from{top:2px}to{top:34px}}
+@keyframes barUp{from{transform:scaleY(0);opacity:0}to{transform:scaleY(1);opacity:1}}
+@keyframes pulse2{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:.55}}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+}
+</style>
+</head>
+<body class="is-locked">
+
+<div id="offlineBanner" class="hide" style="background:#7a1a0a;border-bottom:2px solid var(--red);padding:10px 20px;text-align:center;font-size:14px;font-weight:600;color:#fff;position:sticky;top:0;z-index:100">
+  SERVER IS NOT RUNNING — Double-click start.bat then refresh.
+  <button id="retryNow" style="background:#fff;color:#7a1a0a;border:none;padding:4px 12px;border-radius:99px;font-weight:700;margin-left:8px">Retry</button>
+</div>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="logo-wrap"><span class="orbit"></span><i class="spark s1"></i><i class="spark s2"></i><i class="spark s3"></i><i class="steam t1"></i><i class="steam t2"></i><i class="steam t3"></i>
+    <div class="badge">
+      <svg viewBox="0 0 32 32" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 9c8-6 16-6 24 0L16 29z" fill="rgba(255,255,255,.12)"/>
+        <circle cx="12" cy="12.5" r="1.7" fill="#ffc93c" stroke="none"/><circle cx="19" cy="12" r="1.7" fill="#ffc93c" stroke="none"/><circle cx="15.5" cy="19" r="1.7" fill="#ffc93c" stroke="none"/>
+      </svg>
+    </div></div>
+    <div>
+      <div class="brand-name" id="shopHeading">PIZZA CITY</div>
+      <div class="brand-tag" id="shopTagline"></div>
+    </div>
+  </div>
+
+  <nav class="dock">
+    <button class="tab on" data-view="counter"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4M7 9h4"/></svg>Counter</button>
+    <button class="tab" data-view="dash" data-protected="1"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Dashboard<svg class="lk" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></button>
+    <button class="tab" data-view="hist"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>History</button>
+    <button class="tab" data-view="menu-mgr" data-protected="1"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Menu<svg class="lk" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></button>
+    <button class="tab" data-view="settings" data-protected="1"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>Settings<svg class="lk" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></button>
+  </nav>
+
+  <span class="sp"></span>
+
+  <div class="today" id="todayPill" title="Today">
+    <div class="tn" id="todayN">0</div>
+    <div class="tl">orders<br>today</div>
+    <div class="ta" id="todayAmt">Rs. ••••</div>
+  </div>
+  <button class="chip" id="statusBtn" data-s="error" title="Server status"><i></i><span id="statusTxt">Connecting…</span></button>
+  <button class="chip" id="lockBtn" data-s="locked" title="Admin lock">
+    <span class="avatar">
+      <svg class="ic-closed" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
+      <svg class="ic-open" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 017.5-2"/></svg>
+    </span>
+    <span class="pf"><b>Admin</b><small id="lockTxt">Locked</small></span>
+  </button>
+</header>
+
+<main class="view on" id="v-counter">
+  <div class="cgrid">
+    <section>
+      <div class="card">
+        <div class="card-hd"><span class="n">1</span> Order Type & Customer</div>
+        <div class="seg" id="segType">
+          <button data-v="delivery" class="on">Delivery</button>
+          <button data-v="takeaway">Takeaway</button>
+          <button data-v="dinein">Dine-in</button>
+        </div>
+        <div class="row r2">
+          <div>
+            <label>Customer Name (optional)</label>
+            <input id="cName" placeholder="Optional">
+          </div>
+          <div>
+            <label id="cPhoneLabel">Mobile Number <span style="color:var(--red)">*</span></label>
+            <input id="cPhone" inputmode="tel" placeholder="03xx-xxxxxxx">
+          </div>
+        </div>
+        <div class="mt" id="addrWrap">
+          <label>Delivery Address (optional)</label>
+          <textarea id="cAddr" rows="2" placeholder="House No, Street, Area…"></textarea>
+        </div>
+        <div class="mt" id="tableWrap" style="display:none">
+          <label>Table Number</label>
+          <input id="cTable" placeholder="e.g. T-3">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><span class="n">2</span> Menu <small>Click item then size</small></div>
+        <div class="cat-tabs" id="catTabs"></div>
+        <div class="deal-banner hide" id="dealBanner"></div>
+        <div class="menu-grid" id="menuGrid"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">Quick Drinks / Bottles <small>Click to add</small></div>
+        <div class="drinks-grid" id="drinksGrid"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><span class="n">3</span> Order & Total</div>
+        <table class="cart-table" id="cartTable">
+          <thead><tr><th>Item</th><th>Quantity</th><th>Amount</th><th></th></tr></thead>
+          <tbody><tr><td colspan="4" class="empty-cart">No items yet</td></tr></tbody>
+        </table>
+
+        <hr class="section-sep">
+        <div class="row r2 mt">
+          <div><label>Discount (Rs.)</label><input type="number" id="iDiscount" min="0" value="0"></div>
+          <div id="delivFeeWrap"><label>Delivery Fee (Rs.)</label><input type="number" id="iDelivery" min="0" value="0"></div>
+        </div>
+
+        <div class="totals mt">
+          <div class="tot-line"><span>Subtotal</span><span id="tSub">Rs. 0</span></div>
+          <div class="tot-line" id="tDiscRow" style="color:var(--green)"><span>Discount</span><span id="tDisc">– Rs. 0</span></div>
+          <div class="tot-line" id="tDelRow"><span>Delivery Fee</span><span id="tDel">Rs. 0</span></div>
+          <div class="tot-line grand"><span>TOTAL</span><span id="tTotal">Rs. 0</span></div>
+        </div>
+
+        <hr class="section-sep">
+        <label>Payment Method</label>
+        <div class="seg" id="segPay">
+          <button data-v="cash" class="on">Cash</button>
+          <button data-v="online">Online</button>
+        </div>
+        <div id="cashRecvWrap" class="mt">
+          <label>Cash Received (Rs.)</label>
+          <input type="number" id="iCashRecv" min="0" placeholder="Leave blank if exact">
+        </div>
+        <div class="mt"><label>Order Note</label><input id="iNote" placeholder="e.g. less spicy…"></div>
+        <div class="mt order-actions">
+          <button class="btn g" id="btnPrint">Save & Print Receipt</button>
+          <button class="btn o" id="btnSaveOnly">Save Only</button>
+          <button class="btn dn" id="btnClear">Clear</button>
+        </div>
+      </div>
+    </section>
+
+    <aside>
+      <div style="position:sticky;top:84px">
+        <div class="card">
+          <div class="card-hd">Receipt Preview</div>
+          <div id="rcptPreview"></div>
+        </div>
+        <div class="card">
+          <div class="card-hd">Today's Orders <small id="recentHd"></small></div>
+          <div id="recentList"></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<main class="view" id="v-dash">
+  <div class="card">
+    <div class="card-hd">Today's Summary <small id="dashDate"></small></div>
+    <div class="kpis" id="kpis"></div>
+  </div>
+  <div class="card">
+    <div class="card-hd">This Month</div>
+    <div class="kpis" id="monthKpis"></div>
+  </div>
+  <div class="card">
+    <div class="card-hd">All Orders Today</div>
+    <div style="overflow:auto"><table class="hist-table" id="dashOrders"></table></div>
+  </div>
+</main>
+
+<main class="view" id="v-hist">
+  <div class="card">
+    <div class="card-hd">Order History (permanent – never deleted)</div>
+    <div class="flex-row" style="margin-bottom:12px;gap:8px;flex-wrap:wrap">
+      <input style="flex:2;min-width:160px" id="hq" placeholder="Search name, mobile, order #">
+      <input type="date" id="hFrom" style="flex:1;min-width:120px">
+      <input type="date" id="hTo" style="flex:1;min-width:120px">
+      <select id="hType" style="flex:1;min-width:110px">
+        <option value="">All types</option>
+        <option value="delivery">Delivery</option>
+        <option value="takeaway">Takeaway</option>
+        <option value="dinein">Dine-in</option>
+      </select>
+      <button class="btn o sm" id="btnSearch">Search</button>
+    </div>
+    <div style="overflow:auto"><table class="hist-table" id="histTable"></table></div>
+  </div>
+</main>
+
+<main class="view" id="v-menu-mgr">
+  <div class="card">
+    <div class="card-hd">Menu Manager
+      <button class="btn sm" id="btnAddItem" style="margin-left:auto">+ Add Item</button>
+    </div>
+    <p class="note">“Delete” removes the item from the counter menu. Old orders are not affected.</p>
+    <div class="cat-tabs" id="mmCatTabs"></div>
+    <div id="mmList"></div>
+  </div>
+</main>
+
+<main class="view" id="v-settings">
+  <div class="g2">
+    <div class="card">
+      <div class="card-hd">Shop Information</div>
+      <p class="note">Tick the box to show a line on the printed receipt and in the top bar.</p>
+      <div class="mt"><label>Shop Name</label><input id="sShopName"></div>
+      <div class="mt">
+        <div class="fld-head"><label>Tagline</label><label class="chk"><input type="checkbox" id="cTagline"> Show</label></div>
+        <input id="sTagline">
+      </div>
+      <div class="mt">
+        <div class="fld-head"><label>Address</label><label class="chk"><input type="checkbox" id="cAddress"> Show</label></div>
+        <input id="sAddress">
+      </div>
+      <div class="mt">
+        <div class="fld-head"><label>Phone Numbers (one per line)</label><label class="chk"><input type="checkbox" id="cPhones"> Show</label></div>
+        <textarea id="sPhones" rows="3"></textarea>
+      </div>
+      <div class="srow mt">
+        <div><label>Default Delivery Fee (Rs.)</label><input type="number" id="sDelFee" min="0"></div>
+        <div><label>Extra Topping S / M / L (Rs.)</label>
+          <div class="flex-row" style="gap:4px;flex-wrap:nowrap">
+            <input type="number" id="sTopS" style="text-align:center" placeholder="S">
+            <input type="number" id="sTopM" style="text-align:center" placeholder="M">
+            <input type="number" id="sTopL" style="text-align:center" placeholder="L">
+          </div>
+        </div>
+      </div>
+      <button class="btn mt" id="btnSaveSettings">Save Shop Settings</button>
+    </div>
+
+    <div class="card">
+      <div class="card-hd">Appearance & Receipt</div>
+      <label>Theme</label>
+      <div class="seg" id="segTheme" style="margin-bottom:12px">
+        <button data-v="dark" class="on">Dark</button>
+        <button data-v="light">Light</button>
+      </div>
+      <label>Receipt Width</label>
+      <div class="seg" id="segWidth" style="margin-bottom:10px">
+        <button data-v="58">58mm</button>
+        <button data-v="80" class="on">80mm</button>
+      </div>
+      <div>
+        <div class="fld-head"><label>Receipt Footer Message</label><label class="chk"><input type="checkbox" id="cFooter"> Show</label></div>
+        <textarea id="sFooter" rows="3"></textarea>
+      </div>
+      <div class="flex-row mt">
+        <label class="chk" style="font-size:13px;color:var(--text)"><input type="checkbox" id="sAutoPrint"> Auto-print on save</label>
+      </div>
+      <p class="note mt">Press “Save Shop Settings” to apply receipt options.</p>
+
+      <hr class="section-sep">
+      <div class="card-hd">Admin Password</div>
+      <p class="note">Protects Dashboard, Menu, Settings and cancelling orders. Locks again after 3 minutes without use.
+        If you forget your password, the default password <b>adminpizzacity</b> always works.</p>
+      <div><label>Current Password</label><input type="password" id="pwCur" autocomplete="off"></div>
+      <div class="srow mt">
+        <div><label>New Password (4–32 characters)</label><input type="password" id="pwNew" autocomplete="off" maxlength="32"></div>
+        <div><label>Confirm New Password</label><input type="password" id="pwNew2" autocomplete="off" maxlength="32"></div>
+      </div>
+      <label class="chk" style="font-size:12px;color:var(--text)"><input type="checkbox" id="pwShow"> Show passwords</label>
+      <div class="flex-row mt">
+        <button class="btn o" id="btnSavePw">Change Password</button>
+        <button class="btn dn sm" id="btnResetPw">Reset to default</button>
+      </div>
+
+      <hr class="section-sep">
+      <div class="card-hd">Backup</div>
+      <button class="btn o sm" id="btnBackup">Run Backup Now</button>
+      <span id="backupInfo" style="font-size:12px;color:var(--muted);margin-left:8px"></span>
+    </div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<div id="loginOverlay" class="overlay">
+  <div class="login-box">
+    <div class="badge lb-badge" style="margin:0 auto 14px;width:56px;height:56px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:28px;height:28px"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
+    </div>
+    <h2>Admin Login</h2>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:18px">Enter the admin password to continue</p>
+    <div class="pw-wrap">
+      <input class="pin-input" type="password" id="pinInput" autocomplete="off" maxlength="32" placeholder="Password">
+      <button class="pw-eye" id="pinEye" type="button" title="Show / hide password">
+        <svg viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
+    <button class="btn" id="pinSubmit" style="width:100%">Unlock</button>
+    <button class="btn o sm" id="pinCancel" style="width:100%;margin-top:8px">Cancel</button>
+    <p id="pinErr" style="color:var(--red2);font-size:12px;margin-top:8px;min-height:16px"></p>
+  </div>
+</div>
+
+<div id="orderModal" class="overlay">
+  <div class="om-box">
+    <div class="om-hd">
+      <h3 id="omTitle">Order</h3>
+      <button class="btn o sm" id="omX">✕</button>
+    </div>
+    <div class="om-body" id="omBody"></div>
+    <div class="flex-row">
+      <button class="btn g" id="omPrint" style="flex:2">Print Receipt</button>
+      <button class="btn dn" id="omCancelOrder" style="flex:1">Cancel Order</button>
+      <button class="btn o" id="omClose">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="printArea"></div>
+
+<div id="itemModal" class="overlay">
+  <div style="background:var(--panel);border:2px solid var(--gold);border-radius:18px;padding:22px;max-width:480px;width:94vw;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;margin-bottom:16px">
+      <h3 id="modalTitle" style="flex:1;margin:0">Add Item</h3>
+      <button class="btn o sm" data-action="close-menu-item">X</button>
+    </div>
+    <div><label>Name *</label><input id="miName" class="mt"></div>
+    <div class="mt"><label>Category *</label><input id="miCat" list="catList"><datalist id="catList"></datalist></div>
+    <div class="mt">
+      <label>Type</label>
+      <div class="seg" id="miTypeSeg" style="margin-top:4px">
+        <button data-v="sized" class="on">Sized (S/M/L)</button>
+        <button data-v="single">Single price</button>
+      </div>
+    </div>
+    <div id="miPricesSized" class="mt">
+      <label>Prices (Rs.)</label>
+      <div class="flex-row" style="gap:8px">
+        <div style="flex:1"><label>S</label><input type="number" id="miPS" min="0"></div>
+        <div style="flex:1"><label>M</label><input type="number" id="miPM" min="0"></div>
+        <div style="flex:1"><label>L</label><input type="number" id="miPL" min="0"></div>
+      </div>
+    </div>
+    <div id="miPriceSingle" class="mt hide">
+      <label>Price (Rs.) *</label><input type="number" id="miPFixed" min="1">
+    </div>
+    <div class="mt"><label>Description</label><textarea id="miDesc" rows="2"></textarea></div>
+    <div class="mt" id="miToppingWrap">
+      <label style="display:flex;align-items:center;gap:7px;cursor:pointer">
+        <input type="checkbox" id="miToppings" style="width:auto" checked> Allow extra toppings
+      </label>
+    </div>
+    <div class="mt">
+      <label style="display:flex;align-items:center;gap:7px;cursor:pointer">
+        <input type="checkbox" id="miActive" style="width:auto" checked> Active (show on counter)
+      </label>
+    </div>
+    <div class="flex-row mt">
+      <button class="btn" id="modalSave" data-action="save-menu-item" style="flex:1">Save Item</button>
+      <button class="btn o" data-action="close-menu-item">Cancel</button>
+    </div>
+    <div id="modalErr" style="color:var(--red);font-size:12px;margin-top:8px"></div>
+  </div>
+</div>
+
+<script src="/app.js" defer></script>
+</body>
+</html>

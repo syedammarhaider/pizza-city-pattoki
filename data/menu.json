@@ -1,0 +1,492 @@
+{
+  "categories": [
+    "Deals",
+    "Pizzas",
+    "Premium Pizzas",
+    "Stuffed Pizzas",
+    "Specials",
+    "Drinks"
+  ],
+  "items": [
+    {
+      "id": "deal1",
+      "name": "Deal 1",
+      "category": "Deals",
+      "type": "single",
+      "prices": {
+        "S": 0,
+        "M": 0,
+        "L": 0
+      },
+      "price": 1400,
+      "description": "1 Large Pizza\n1 Small Pizza\n1 Cold Drink (1.5 Ltr.)",
+      "image": "",
+      "allowToppings": false,
+      "active": true
+    },
+    {
+      "id": "deal2",
+      "name": "Deal 2",
+      "category": "Deals",
+      "type": "single",
+      "prices": {
+        "S": 0,
+        "M": 0,
+        "L": 0
+      },
+      "price": 2050,
+      "description": "2 Large Pizzas\n1 Cold Drink (1.5 Ltr.)",
+      "image": "",
+      "allowToppings": false,
+      "active": true
+    },
+    {
+      "id": "deal3",
+      "name": "Deal 3",
+      "category": "Deals",
+      "type": "single",
+      "prices": {
+        "S": 0,
+        "M": 0,
+        "L": 0
+      },
+      "price": 2700,
+      "description": "2 Large Pizza\n1 Medium Pizza\n1 Cold Drink (1.5 Ltr.)",
+      "image": "",
+      "allowToppings": false,
+      "active": true
+    },
+    {
+      "id": "deal4",
+      "name": "Deal 4",
+      "category": "Deals",
+      "type": "single",
+      "prices": {
+        "S": 0,
+        "M": 0,
+        "L": 0
+      },
+      "price": 4000,
+      "description": "4 Large Pizza\n2 Cold Drink (1.5 Ltr.)",
+      "image": "",
+      "allowToppings": false,
+      "active": true
+    },
+    {
+      "id": "deal5",
+      "name": "Deal 5",
+      "category": "Deals",
+      "type": "single",
+      "prices": {
+        "S": 0,
+        "M": 0,
+        "L": 0
+      },
+      "price": 1900,
+      "description": "5 Small Pizza\n1 Cold Drink (1.5 Ltr.)",
+      "image": "",
+      "allowToppings": false,
+      "active": true
+    },
+    {
+      "id": "deal6",
+      "name": "Deal 6",
+      "category": "Deals",
+      "type": "single",
+      "prices": {
+        "S": 0,
+        "M": 0,
+        "L": 0
+      },
+      "price": 4200,
+      "description": "1 Large Cheese Stuffer\n1 Large Kabab Stuffer\n1 Loaded Special\n2 Cold Drink (1.5 Ltr.)",
+      "image": "",
+      "allowToppings": false,
+      "active": true
+    },
+    {
+      "id": "deal7",
+      "name": "Deal 7",
+      "category": "Deals",
+      "type": "single",
+      "prices": {
+        "S": 0,
+        "M": 0,
+        "L": 0
+      },
+      "price": 1450,
+      "description": "2 Medium Pizza\n1 Cold Drink (1 Ltr.)",
+      "image": "",
+      "allowToppings": false,
+      "active": true
+    },
+    {
+      "id": "deal8",
+      "name": "Deal 8",
+      "category": "Deals",
+      "type": "single",
+      "prices": {
+        "S": 0,
+        "M": 0,
+        "L": 0
+      },
+      "price": 2500,
+      "description": "1 Large Pizza\n2 Medium Pizza\n1 Cold Drink (1 Ltr.)",
+      "image": "",
+      "allowToppings": false,
+      "active": true
+    },
+    {
+      "id": "chicken-tikka",
+      "name": "Chicken Tikka Pizza",
+      "category": "Pizzas",
+      "type": "sized",
+      "prices": {
+        "S": 350,
+        "M": 650,
+        "L": 950
+      },
+      "price": 0,
+      "description": "",
+      "image": "",
+      "allowToppings": true,
+      "active": true
+    },
+    {
+      "id": "chicken-achari",
+      "name": "Chicken Achari Pizza",
+      "category": "Pizzas",
+      "type": "sized",
+      "prices": {
+        "S": 350,
+        "M": 650,
+        "L": 950
+      },
+      "price": 0,
+      "description": "",
+      "image": "",
+      "allowToppings": true,
+      "active": true
+    },
+    {
+      "id": "chicken-fajita",
+      "name": "Chicken Fajita Pizza",
+      "category": "Pizzas",
+      "type": "sized",
+      "prices": {
+        "S": 350,
+        "M": 650,
+        "L": 950
+      },
+      "price": 0,
+      "description": "",
+      "image": "",
+      "allowToppings": true,
+      "active": true
+    },
+    {
+      "id": "peri-peri",
+      "name": "Peri Peri Pizza",
+      "category": "Pizzas",
+      "type": "sized",
+      "prices": {
+        "S": 350,
+        "M": 650,
+        "L": 950
+      },
+      "price": 0,
+      "description": "",
+      "image": "",
+      "allowToppings": true,
+      "active": true
+    },
+    {
+      "id": "chicken-tandori",
+      "name": "Chicken Tandori Pizza",
+      "category": "Pizzas",
+      "type": "sized",
+      "prices": {
+        "S": 350,
+        "M": 650,
+        "L": 950
+      },
+      "price": 0,
+      "description": "",
+      "image": "",
+      "allowToppings": true,
+      "active": true
+    },
+    {
+      "id": "chicken-supreme",
+      "name": "Chicken Supreme Pizza",
+      "category": "Pizzas",
+      "type": "sized",
+      "prices": {
+        "S": 350,
+        "M": 650,
+        "L": 950
+      },
+      "price": 0,
+      "description": "",
+      "image": "",
+      "allowToppings": true,
+      "active": true
+    },
+    {
+      "id": "cheese-lover",
+      "name": "Cheese Lover Pizza",
+      "category": "Pizzas",
+      "type": "sized",
+      "prices": {
+        "S": 350,
+        "M": 650,
+        "L": 950
+      },
+      "price": 0,
+      "description": "",
+      "image": "",
+      "allowToppings": true,
+      "active": true
+    },
+    {
+      "id": "vegetable",
+      "name": "Vegetable Pizza",
+      "category": "Pizzas",
+      "type": "sized",
+      "prices": {
+        "S": 350,
+        "M": 650,
+        "L": 950
+      },
+      "price": 0,
+      "description": "",
+      "image": "",
+      "allowToppings": true,
+      "active": true
+    },
+    {
+      "id": "city-special",
+      "name": "City Special Pizza",
+      "category": "Premium Pizzas",
+      "type": "sized",
+      "prices": {
+        "S": 450,
+        "M": 750,
+        "L": 1100
+      },
+      "price": 0,
+      "description": "",
+      "image": "",
+      "allowToppings": true,
+      "active": true
+    },
+    {
+      "id": "italian",
+      "name": "Italian Pizza",
+      "category": "Premium Pizzas",
+      "type": "sized",
+      "prices": {
+        "S": 450,
+        "M": 750,
+        "L": 1100
+      },
+      "price": 0,
+      "description": "",
+      "image": "",
+      "allowToppings": true,
+      "active": true
+    },
+    {
+      "id": "malai-boti",
+      "name": "Malai Boti Pizza",
+      "category": "Premium Pizzas",
+      "type": "sized",
+      "prices": {
+        "S": 450,
+        "M": 750,
+        "L": 1100
+      },
+      "price": 0,
+      "description": "",
+      "image": "",
+      "allowToppings": true,
+      "active": true
+    },
+    {
+      "id": "kabab-behari",
+      "name": "Kabab Behari Pizza",
+      "category": "Premium Pizzas",
+      "type": "sized",
+      "prices": {
+        "S": 450,
+        "M": 750,
+        "L": 1100
+      },
+      "price": 0,
+      "description": "",
+      "image": "",
+      "allowToppings": true,
+      "active": true
+    },
+    {
+      "id": "bbq",
+      "name": "Bar B.Q. Pizza",
+      "category": "Premium Pizzas",
+      "type": "sized",
+      "prices": {
+        "S": 450,
+        "M": 750,
+        "L": 1100
+      },
+      "price": 0,
+      "description": "",
+      "image": "",
+      "allowToppings": true,
+      "active": true
+    },
+    {
+      "id": "kabab-stuffer",
+      "name": "Kabab Stuffer Pizza",
+      "category": "Stuffed Pizzas",
+      "type": "sized",
+      "prices": {
+        "S": 550,
+        "M": 850,
+        "L": 1300
+      },
+      "price": 0,
+      "description": "",
+      "image": "",
+      "allowToppings": true,
+      "active": true
+    },
+    {
+      "id": "cheese-stuffer",
+      "name": "Cheese Stuffer Pizza",
+      "category": "Stuffed Pizzas",
+      "type": "sized",
+      "prices": {
+        "S": 550,
+        "M": 850,
+        "L": 1300
+      },
+      "price": 0,
+      "description": "",
+      "image": "",
+      "allowToppings": true,
+      "active": true
+    },
+    {
+      "id": "crown-crust",
+      "name": "Crown Crust Pizza",
+      "category": "Stuffed Pizzas",
+      "type": "sized",
+      "prices": {
+        "S": 550,
+        "M": 850,
+        "L": 1300
+      },
+      "price": 0,
+      "description": "",
+      "image": "",
+      "allowToppings": true,
+      "active": true
+    },
+    {
+      "id": "loaded",
+      "name": "Special Loaded Pizza",
+      "category": "Specials",
+      "type": "sized",
+      "prices": {
+        "S": 0,
+        "M": 850,
+        "L": 1300
+      },
+      "price": 0,
+      "description": "",
+      "image": "",
+      "allowToppings": true,
+      "active": true
+    },
+    {
+      "id": "lazania",
+      "name": "Chicken Lazania Pizza",
+      "category": "Specials",
+      "type": "sized",
+      "prices": {
+        "S": 550,
+        "M": 850,
+        "L": 1300
+      },
+      "price": 0,
+      "description": "",
+      "image": "",
+      "allowToppings": true,
+      "active": true
+    },
+    {
+      "id": "drink-15",
+      "name": "Cold Drink 1.5 Ltr",
+      "category": "Drinks",
+      "type": "single",
+      "prices": {
+        "S": 0,
+        "M": 0,
+        "L": 0
+      },
+      "price": 180,
+      "description": "",
+      "image": "",
+      "allowToppings": false,
+      "active": true
+    },
+    {
+      "id": "drink-1",
+      "name": "Cold Drink 1 Ltr",
+      "category": "Drinks",
+      "type": "single",
+      "prices": {
+        "S": 0,
+        "M": 0,
+        "L": 0
+      },
+      "price": 120,
+      "description": "",
+      "image": "",
+      "allowToppings": false,
+      "active": true
+    },
+    {
+      "id": "drink-500",
+      "name": "Cold Drink 500 ml",
+      "category": "Drinks",
+      "type": "single",
+      "prices": {
+        "S": 0,
+        "M": 0,
+        "L": 0
+      },
+      "price": 80,
+      "description": "",
+      "image": "",
+      "allowToppings": false,
+      "active": true
+    },
+    {
+      "id": "water",
+      "name": "Mineral Water",
+      "category": "Drinks",
+      "type": "single",
+      "prices": {
+        "S": 0,
+        "M": 0,
+        "L": 0
+      },
+      "price": 50,
+      "description": "",
+      "image": "",
+      "allowToppings": false,
+      "active": true
+    }
+  ]
+}
