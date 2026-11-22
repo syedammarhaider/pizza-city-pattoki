@@ -137,29 +137,25 @@ function defaultMenu() {
 }
 
 /* -------------------- State -------------------- */
+// Orders live ONLY in SQLite. Nothing is cached in memory, so RAM usage
+// stays flat no matter how many years of orders accumulate.
 let settings, menu, meta;
-const orders = new Map();
-const byDate = new Map();   // date -> Set(order ids)  (fast lookups for reports)
 
-function idxAdd(o) {
-  let s = byDate.get(o.date);
-  if (!s) { s = new Set(); byDate.set(o.date, s); }
-  s.add(o.id);
+// ---- order queries (all SQL, no in-memory cache) ----
+function getOrder(id) {
+  const r = db.prepare('SELECT data_json FROM orders WHERE id = ?').get(String(id));
+  if (!r) return null;
+  try { return JSON.parse(r.data_json); } catch (e) { return null; }
 }
-function idxDel(o) {
-  const s = byDate.get(o.date);
-  if (s) { s.delete(o.id); if (!s.size) byDate.delete(o.date); }
+function parseRows(rows) {
+  const out = [];
+  for (const r of rows) {
+    try { out.push(JSON.parse(r.data_json)); } catch (e) {}
+  }
+  return out;
 }
-function putOrder(o) {
-  const old = orders.get(o.id);
-  if (old) idxDel(old);
-  orders.set(o.id, o);
-  idxAdd(o);
-}
-function dropOrder(id) {
-  const old = orders.get(id);
-  if (old) idxDel(old);
-  orders.delete(id);
+function orderCount() {
+  return db.prepare('SELECT COUNT(*) c FROM orders').get().c;
 }
 
 function normalizeSettings() {
@@ -300,29 +296,14 @@ function saveMeta(key, val) {
   `).run(key, JSON.stringify(val), new Date().toISOString());
 }
 
-function loadOrders() {
-  orders.clear();
-  byDate.clear();
-  const rows = db.prepare('SELECT data_json FROM orders ORDER BY order_number ASC').all();
-  for (const r of rows) {
-    try {
-      const o = JSON.parse(r.data_json);
-      if (o && o.id) putOrder(o);
-    } catch (e) {
-      console.error('Warning: could not parse order from database');
-    }
-  }
-}
-
 function saveOrder(o) {
-  putOrder(o);
   db.prepare(`
     INSERT INTO orders (
       id, order_number, order_type, payment_method, subtotal, discount, delivery_fee, total,
-      items_json, customer_phone, note, status, date, created_at, data_json
+      items_json, customer_phone, note, status, date, created_at, day_no, data_json
     ) VALUES (
       @id, @order_number, @order_type, @payment_method, @subtotal, @discount, @delivery_fee, @total,
-      @items_json, @customer_phone, @note, @status, @date, @created_at, @data_json
+      @items_json, @customer_phone, @note, @status, @date, @created_at, @day_no, @data_json
     ) ON CONFLICT(id) DO UPDATE SET
       order_number = excluded.order_number,
       order_type = excluded.order_type,
@@ -337,6 +318,7 @@ function saveOrder(o) {
       status = excluded.status,
       date = excluded.date,
       created_at = excluded.created_at,
+      day_no = excluded.day_no,
       data_json = excluded.data_json
   `).run({
     id: String(o.id),
@@ -353,12 +335,12 @@ function saveOrder(o) {
     status: String(o.status || 'completed'),
     date: String(o.date || (o.createdAt ? o.createdAt.slice(0, 10) : dateStr(new Date()))),
     created_at: String(o.createdAt || new Date().toISOString()),
+    day_no: Number.isInteger(o.dayNo) ? o.dayNo : null,
     data_json: JSON.stringify(o)
   });
 }
 
 function deleteOrder(id) {
-  dropOrder(id);
   db.prepare('DELETE FROM orders WHERE id = ?').run(String(id));
 }
 
@@ -367,8 +349,7 @@ function loadAll() {
   loadSettings();
   loadMenu();
   loadMeta();
-  loadOrders();
-  const maxNo = Array.from(orders.values()).reduce((m, o) => Math.max(m, o.no || 0), 0);
+  const maxNo = db.prepare('SELECT COALESCE(MAX(order_number),0) m FROM orders').get().m;
   if (!Number.isInteger(meta.lastNo) || meta.lastNo < maxNo) {
     meta.lastNo = maxNo;
     saveMeta('lastNo', meta.lastNo);
@@ -637,24 +618,14 @@ function buildOrder(b) {
 // has fully validated the order, so a rejected order never burns a number.
 function assignOrderNo(o) {
   const date = o.date || dateStr(new Date());
-  let dayNo = 1;
-  const todays = byDate.get(date);
-  if (todays) todays.forEach(id => { const x = orders.get(id); if (x && x.dayNo >= dayNo) dayNo = x.dayNo + 1; });
+  const dn = db.prepare('SELECT COALESCE(MAX(day_no),0)+1 n FROM orders WHERE date = ?').get(date);
   meta.lastNo += 1;
   saveMeta('lastNo', meta.lastNo);
   o.id = rid() + meta.lastNo.toString(36);
   o.no = meta.lastNo;
-  o.dayNo = dayNo;
+  o.dayNo = dn.n;
   o.date = date;
   return o;
-}
-
-function sortedOrders(from, to) {
-  const list = [];
-  byDate.forEach((ids, date) => {
-    if ((!from || date >= from) && (!to || date <= to)) ids.forEach(id => { const o = orders.get(id); if (o) list.push(o); });
-  });
-  return list.sort((a, b) => b.no - a.no);
 }
 function getRange(q) {
   const today = dateStr(new Date());
@@ -666,34 +637,42 @@ function getRange(q) {
 }
 
 function report(from, to) {
-  const list = sortedOrders(from, to);
-  const ok = list.filter(o => o.status === 'completed');
+  const agg = db.prepare(`
+    SELECT COUNT(*) total_rows,
+      COALESCE(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END),0) orders,
+      COALESCE(SUM(CASE WHEN status = 'completed' THEN subtotal ELSE 0 END),0) subtotal,
+      COALESCE(SUM(CASE WHEN status = 'completed' THEN discount ELSE 0 END),0) discounts,
+      COALESCE(SUM(CASE WHEN status = 'completed' THEN delivery_fee ELSE 0 END),0) delivery,
+      COALESCE(SUM(CASE WHEN status = 'completed' THEN total ELSE 0 END),0) total
+    FROM orders WHERE date BETWEEN ? AND ?
+  `).get(from, to);
   const r = {
-    from, to, orders: ok.length, cancelled: list.length - ok.length, voided: list.length - ok.length,
-    subtotal: 0, discounts: 0, delivery: 0, tax: 0, total: 0, avg: 0,
+    from, to, orders: agg.orders, cancelled: agg.total_rows - agg.orders, voided: agg.total_rows - agg.orders,
+    subtotal: agg.subtotal, discounts: agg.discounts, delivery: agg.delivery, tax: 0, total: agg.total,
+    avg: agg.orders ? Math.round(agg.total / agg.orders) : 0,
     byPayment: {}, byType: {}, byDay: [], top: []
   };
-  const days = {}, tops = {};
-  ok.forEach(o => {
-    r.subtotal += o.subtotal;
-    r.discounts += o.discount.amount;
-    r.delivery += o.deliveryFee;
-    r.tax += o.tax || 0;
-    r.total += o.total;
-    const pm = r.byPayment[o.payment.method] || (r.byPayment[o.payment.method] = { count: 0, total: 0 });
-    pm.count++; pm.total += o.total;
-    const ty = r.byType[o.type] || (r.byType[o.type] = { count: 0, total: 0 });
-    ty.count++; ty.total += o.total;
-    const dy = days[o.date] || (days[o.date] = { date: o.date, count: 0, total: 0 });
-    dy.count++; dy.total += o.total;
-    o.items.forEach(i => {
+  db.prepare(`SELECT payment_method m, COUNT(*) c, SUM(total) t FROM orders
+    WHERE date BETWEEN ? AND ? AND status = 'completed' GROUP BY payment_method`).all(from, to)
+    .forEach(x => { r.byPayment[x.m] = { count: x.c, total: x.t }; });
+  db.prepare(`SELECT order_type m, COUNT(*) c, SUM(total) t FROM orders
+    WHERE date BETWEEN ? AND ? AND status = 'completed' GROUP BY order_type`).all(from, to)
+    .forEach(x => { r.byType[x.m] = { count: x.c, total: x.t }; });
+  r.byDay = db.prepare(`SELECT date, COUNT(*) AS count, SUM(total) AS total FROM orders
+    WHERE date BETWEEN ? AND ? AND status = 'completed' GROUP BY date ORDER BY date DESC`).all(from, to);
+
+  const tops = {};
+  const itemRows = db.prepare(`SELECT items_json FROM orders
+    WHERE date BETWEEN ? AND ? AND status = 'completed'`).iterate(from, to);
+  for (const row of itemRows) {
+    let its;
+    try { its = JSON.parse(row.items_json); } catch (e) { continue; }
+    for (const i of its) {
       const key = i.name + (i.size ? ' (' + i.size + ')' : '');
       const t = tops[key] || (tops[key] = { name: key, qty: 0, amount: 0 });
       t.qty += i.qty; t.amount += i.total;
-    });
-  });
-  r.avg = ok.length ? Math.round(r.total / ok.length) : 0;
-  r.byDay = Object.values(days).sort((a, b) => (a.date < b.date ? 1 : -1));
+    }
+  }
   r.top = Object.values(tops).sort((a, b) => b.qty - a.qty || b.amount - a.amount).slice(0, 15);
   return r;
 }
@@ -722,7 +701,9 @@ async function api(req, res, url) {
       serverTime: new Date().toISOString()
     });
   }
-  if (m === 'GET' && p === '/api/health') return sendJSON(res, 200, { ok: true, orders: orders.size });
+  if (m === 'GET' && p === '/api/health') {
+    return sendJSON(res, 200, { ok: true, orders: orderCount(), memMB: Math.round(process.memoryUsage().rss / 1048576) });
+  }
 
   if (m === 'POST' && p === '/api/login') {
     const b = await readBody(req, 10000);
@@ -751,19 +732,28 @@ async function api(req, res, url) {
   if (m === 'GET' && p === '/api/orders') {
     if (!LOCAL_BIND) need(req);   // on LAN, order history is private
     const r = getRange(q);
-    let list = sortedOrders(r.from, r.to);
-    const s = (q.get('q') || '').trim().toLowerCase();
-    if (s) list = list.filter(o =>
-      String(o.no) === s.replace('#', '') ||
-      (o.customer.name || '').toLowerCase().includes(s) ||
-      (o.customer.phone || '').includes(s)
-    );
-    return sendJSON(res, 200, { from: r.from, to: r.to, orders: list.slice(0, 2000) });
+    const s = (q.get('q') || '').trim();
+    let list;
+    if (/^#?\d+$/.test(s)) {
+      // numeric search: exact order number OR phone containing the digits
+      const num = Number(s.replace('#', ''));
+      const like = '%' + s.replace('#', '') + '%';
+      list = parseRows(db.prepare(`SELECT data_json FROM orders WHERE date BETWEEN ? AND ?
+        AND (order_number = ? OR customer_phone LIKE ?) ORDER BY order_number DESC LIMIT 2000`)
+        .all(r.from, r.to, num, like));
+    } else {
+      const sql = `SELECT data_json FROM orders WHERE date BETWEEN ? AND ?` +
+        (s ? ` AND (lower(customer_phone) LIKE ? OR lower(json_extract(data_json, '$.customer.name')) LIKE ?)` : '') +
+        ` ORDER BY order_number DESC LIMIT 2000`;
+      const args = s ? [r.from, r.to, '%' + s.toLowerCase() + '%', '%' + s.toLowerCase() + '%'] : [r.from, r.to];
+      list = parseRows(db.prepare(sql).all(...args));
+    }
+    return sendJSON(res, 200, { from: r.from, to: r.to, orders: list });
   }
 
   let mm = /^\/api\/orders\/([A-Za-z0-9]+)$/.exec(p);
   if (mm) {
-    const o = orders.get(mm[1]);
+    const o = getOrder(mm[1]);
     if (!o) throw new HttpError(404, 'Order not found');
     if (m === 'GET') {
       if (!LOCAL_BIND) need(req);
@@ -778,7 +768,7 @@ async function api(req, res, url) {
   mm = /^\/api\/orders\/([A-Za-z0-9]+)\/(cancel|void)$/.exec(p);
   if (mm && m === 'POST') {
     need(req);
-    const o = orders.get(mm[1]);
+    const o = getOrder(mm[1]);
     if (!o) throw new HttpError(404, 'Order not found');
     const b = await readBody(req, 10000);
     if (o.status === 'void') throw bad('Already cancelled');
@@ -965,7 +955,7 @@ function start() {
     console.log('\n  ==========================================');
     console.log('   ' + settings.shopName + ' is RUNNING (SQLite Mode)');
     console.log('   Open:  http://localhost:' + CONFIG.port);
-    console.log('   Orders so far: ' + orders.size);
+    console.log('   Orders so far: ' + orderCount());
     console.log('   Do NOT close this window while working.');
     console.log('  ==========================================\n');
   });

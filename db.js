@@ -9,7 +9,10 @@ const backupDir = path.join(__dirname, 'backups');
 fs.mkdirSync(dataDir, { recursive: true });
 fs.mkdirSync(backupDir, { recursive: true });
 
-const dbPath = path.join(dataDir, 'pizza_city.db');
+// PIZZA_CITY_DB env var overrides the database path (used by bench.js/tests).
+const dbPath = process.env.PIZZA_CITY_DB
+  ? path.resolve(process.env.PIZZA_CITY_DB)
+  : path.join(dataDir, 'pizza_city.db');
 const db = new Database(dbPath);
 
 db.pragma('journal_mode = WAL');
@@ -70,6 +73,20 @@ db.exec(`
     updated_at TEXT NOT NULL
   );
 `);
+
+// Migration: day_no column for fast daily token numbers (added after v4).
+const orderCols = db.prepare('PRAGMA table_info(orders)').all().map(c => c.name);
+if (!orderCols.includes('day_no')) {
+  db.exec('ALTER TABLE orders ADD COLUMN day_no INTEGER');
+  const rows = db.prepare('SELECT id, data_json FROM orders WHERE day_no IS NULL').all();
+  const upd = db.prepare('UPDATE orders SET day_no = ? WHERE id = ?');
+  const backfill = db.transaction(rs => {
+    for (const r of rs) {
+      try { upd.run(JSON.parse(r.data_json).dayNo || 0, r.id); } catch (e) {}
+    }
+  });
+  backfill(rows);
+}
 
 module.exports = { db };
 
