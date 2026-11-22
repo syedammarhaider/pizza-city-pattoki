@@ -485,14 +485,12 @@
     if (o.status === 'void') h += '<div class="rc-cancel">CANCELLED</div>';
 
     // Footer
-    h += '<div class="rc-cut">✂</div>';
     if (s.showFooter !== false && s.receiptFooter) h += '<div class="rc-thanks">' + esc(s.receiptFooter) + '</div>';
     const real = /^\d+$/.test(String(o.no));
     const ymd = String(o.date || dstr(d)).replace(/-/g, '');
     const code = real ? 'PC-' + ymd + '-' + String(o.no).padStart(4, '0') : 'PC-NEW-ORDER';
     h += '<div class="rc-bc"><span class="rc-scan"></span>' + barsSVG(code + (o.dayNo || '')) +
       '<div class="rc-bc-num">' + esc(code) + '</div></div>';
-    h += '<div class="rc-cr">SOFTWARE BY <b>' + esc(String(S.credit.name)) + '</b><span> · ' + esc(S.credit.phone) + '</span></div>';
     return h + '</div>';
   }
   function printReceipt(o) {
