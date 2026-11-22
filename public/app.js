@@ -460,7 +460,7 @@
     (o.items || []).forEach(i => {
       h += '<div class="rc-it"><div class="rc-row"><span class="rc-it-name">' + esc(i.name) +
         (i.size ? '<i class="rc-sz">' + esc(i.size) + '</i>' : '') + '</span><span class="q">' + esc(i.qty) + '</span><b class="a">' + nf(i.total) + '</b></div>';
-      h += '<div class="rc-it-sub">' + esc(money(i.unit)) + ' each</div>';
+      h += '<div class="rc-it-sub rc-unit">' + esc(money(i.unit)) + ' each</div>';
       const dealItem = i.description || ((S.menu.items || []).find(m => m.id === i.itemId) || {}).description || '';
       String(dealItem).split('\n').filter(x => x.trim()).forEach(line => {
         h += '<div class="rc-it-sub rc-dl">' + esc(line.trim()) + '</div>';
