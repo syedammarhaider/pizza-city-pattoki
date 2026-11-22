@@ -159,6 +159,9 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--gold);border-col
 .rc-shop{font-size:24px;font-weight:900;letter-spacing:4px;line-height:1.05;text-transform:uppercase}
 .rc-tag{margin-top:5px;font-size:9.5px;letter-spacing:1.6px;text-transform:uppercase;font-weight:700}
 .rc-sub{font-size:10.5px;margin-top:2px}
+.rc-tel{font-size:11.5px;font-weight:700;letter-spacing:.3px}
+.rc-payrow{font-weight:700}
+.rc-payrow>span:first-child{opacity:1}
 .rc-dbl{border:none;border-top:3px double var(--ink);margin:9px 0}
 .rc-dash{border:none;border-top:1px dashed #666;margin:8px 0}
 .rc-top{display:flex;gap:10px;align-items:stretch}
@@ -263,7 +266,7 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--gold);border-col
   html,body{background:#fff!important;margin:0!important;padding:0!important}
   body>*:not(#printArea){display:none!important}
   #printArea{display:block!important}
-  #printArea .rc{margin:0;box-shadow:none;border-radius:0;padding:2mm 2.5mm 4mm;max-width:none}
+  #printArea .rc{margin:0 auto;box-shadow:none;border-radius:0;padding:2mm 2.5mm 4mm;max-width:none}
   #printArea .rc::after{display:none}
 }
 
@@ -610,7 +613,7 @@ html.light #loginOverlay{background:rgba(45,28,16,.5)}
           <label>Cash Received (Rs.)</label>
           <input type="number" id="iCashRecv" min="0" placeholder="Leave blank if exact">
         </div>
-        <div class="mt"><label>Order Note</label><input id="iNote" placeholder="e.g. less spicy…"></div>
+        <div class="mt hide"><label>Order Note</label><input id="iNote" placeholder="e.g. less spicy…"></div>
         <div class="mt order-actions">
           <button class="btn g" id="btnPrint">Save & Print Receipt</button>
           <button class="btn o" id="btnSaveOnly">Save Only</button>

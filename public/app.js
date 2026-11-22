@@ -434,7 +434,7 @@
     h += '<div class="rc-head">' + MARK + '<div class="rc-shop">' + esc(s.shopName || '') + '</div>';
     if (s.showTagline !== false && s.tagline) h += '<div class="rc-tag">' + esc(s.tagline) + '</div>';
     if (s.showAddress !== false && s.address) h += '<div class="rc-sub">' + esc(s.address) + '</div>';
-    if (s.showPhones !== false && (s.phones || []).length) h += '<div class="rc-sub"><b>Tel:</b> ' + esc(s.phones.join(' / ')) + '</div>';
+    if (s.showPhones !== false && (s.phones || []).length) h += '<div class="rc-sub rc-tel"><b>Tel:</b> ' + esc(s.phones.map(p => String(p).replace(/\D/g, '')).join(', ')) + '</div>';
     h += '</div><hr class="rc-dbl">';
 
     // Token + order info
@@ -481,7 +481,7 @@
     h += '</div>';
     h += '<div class="rc-total"><span>TOTAL</span><b>' + esc(money(o.total)) + '</b></div>';
     const p = o.payment || {};
-    h += '<div class="rc-kv"><span>Payment</span><span class="rc-pay">' + esc((PAY_LABEL[p.method] || p.method || '').toUpperCase()) + '</span></div>';
+    h += '<div class="rc-kv rc-payrow"><span>Payment</span><span class="rc-pay">' + esc((PAY_LABEL[p.method] || p.method || '').toUpperCase()) + '</span></div>';
     if (p.method === 'cash' && p.received > 0) {
       h += sumLine('Received', money(p.received));
       if (p.received >= o.total) h += sumLine('Change', money(p.change));
