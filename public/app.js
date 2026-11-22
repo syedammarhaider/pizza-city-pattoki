@@ -423,7 +423,7 @@
     const s = S.settings;
     const narrow = s.receiptWidth === 58;
     const d = new Date(o.createdAt);
-    const dateTxt = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const dateTxt = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
     const timeTxt = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
     const style = forPrint
       ? ' style="width:' + (narrow ? '54mm' : '76mm') + '"'
@@ -482,10 +482,6 @@
     h += '<div class="rc-total"><span>TOTAL</span><b>' + esc(money(o.total)) + '</b></div>';
     const p = o.payment || {};
     h += '<div class="rc-kv rc-payrow"><span>Payment</span><span class="rc-pay">' + esc((PAY_LABEL[p.method] || p.method || '').toUpperCase()) + '</span></div>';
-    if (p.method === 'cash' && p.received > 0) {
-      h += sumLine('Received', money(p.received));
-      if (p.received >= o.total) h += sumLine('Change', money(p.change));
-    }
     if (o.status === 'void') h += '<div class="rc-cancel">CANCELLED</div>';
 
     // Footer
