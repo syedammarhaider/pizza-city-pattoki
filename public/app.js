@@ -486,7 +486,6 @@
       h += sumLine('Received', money(p.received));
       if (p.received >= o.total) h += sumLine('Change', money(p.change));
     }
-    if (o.note) h += '<div class="rc-note"><b>Note:</b> ' + esc(o.note) + '</div>';
     if (o.status === 'void') h += '<div class="rc-cancel">CANCELLED</div>';
 
     // Footer
