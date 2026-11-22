@@ -491,6 +491,7 @@
     const code = real ? 'PC-' + ymd + '-' + String(o.no).padStart(4, '0') : 'PC-NEW-ORDER';
     h += '<div class="rc-bc"><span class="rc-scan"></span>' + barsSVG(code + (o.dayNo || '')) +
       '<div class="rc-bc-num">' + esc(code) + '</div></div>';
+    h += '<div class="rc-dev">Developed by ' + esc(String(S.credit.name)) + ' ' + esc(S.credit.phone) + '</div>';
     return h + '</div>';
   }
   function printReceipt(o) {
