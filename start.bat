@@ -12,6 +12,13 @@ echo.
 
 where node >nul 2>nul
 if errorlevel 1 (
+    if exist "C:\Program Files\nodejs\node.exe" (
+        set "PATH=C:\Program Files\nodejs;%PATH%"
+    )
+)
+
+where node >nul 2>nul
+if errorlevel 1 (
     color 0C
     echo  ERROR: Node.js is not installed.
     echo  Download LTS from https://nodejs.org
@@ -19,10 +26,13 @@ if errorlevel 1 (
     exit /b 1
 )
 
-netstat -an 2>nul | findstr ":3000 " | findstr "LISTENING" >nul
+for /f %%P in ('node -e "try{var c=require('./config.json');console.log(c.port||3000)}catch(e){console.log(3000)}"') do set "PORT=%%P"
+if not defined PORT set "PORT=3000"
+
+netstat -an 2>nul | findstr ":%PORT% " | findstr "LISTENING" >nul
 if not errorlevel 1 (
     echo  Server already running. Opening browser...
-    start "" "http://localhost:3000"
+    start "" "http://localhost:%PORT%"
     pause
     exit /b 0
 )
@@ -31,7 +41,7 @@ echo  Starting server...
 echo  DO NOT close this window while working.
 echo.
 
-start "" /min cmd /c "timeout /t 2 /nobreak >nul & start http://localhost:3000"
+start "" /min cmd /c "timeout /t 2 /nobreak >nul & start http://localhost:%PORT%"
 node server.js
 
 echo.

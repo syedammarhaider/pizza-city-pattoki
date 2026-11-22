@@ -410,11 +410,11 @@
     }
     // end guard
     gap(1); put(1); gap(1); put(2);
-    return '<svg class="rc-bars" viewBox="0 0 ' + x + ' 30" preserveAspectRatio="none" shape-rendering="crispEdges" fill="#111" aria-hidden="true">' + rects + '</svg>';
+    return '<svg class="rc-bars" viewBox="0 0 ' + x + ' 30" preserveAspectRatio="none" shape-rendering="crispEdges" fill="#777" aria-hidden="true">' + rects + '</svg>';
   }
-  const MARK = '<svg class="rc-mark" viewBox="0 0 32 32" fill="none" stroke="#111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-    '<path d="M4 9c8-6 16-6 24 0L16 29z"/><circle cx="12" cy="12.5" r="1.8" fill="#111" stroke="none"/>' +
-    '<circle cx="19" cy="12" r="1.8" fill="#111" stroke="none"/><circle cx="15.5" cy="19" r="1.8" fill="#111" stroke="none"/></svg>';
+  const MARK = '<svg class="rc-mark" viewBox="0 0 32 32" fill="none" stroke="#777" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M4 9c8-6 16-6 24 0L16 29z"/><circle cx="12" cy="12.5" r="1.8" fill="#777" stroke="none"/>' +
+    '<circle cx="19" cy="12" r="1.8" fill="#777" stroke="none"/><circle cx="15.5" cy="19" r="1.8" fill="#777" stroke="none"/></svg>';
 
   function kv(l, r) { return '<div class="rc-kv"><span>' + esc(l) + '</span><b>' + esc(r) + '</b></div>'; }
   function sumLine(l, r) { return '<div class="rc-kv"><span>' + esc(l) + '</span><span>' + esc(r) + '</span></div>'; }

@@ -455,6 +455,13 @@ html.light #loginOverlay{background:rgba(45,28,16,.5)}
   #printArea .rc-scan{display:none!important}
   #printArea *{animation:none!important;transition:none!important}
   #printArea .rc-bars rect{transform:none!important}
+  /* eco print: lighter blacks = less ink on the printer */
+  #printArea .rc-token,#printArea .rc-total{background:#fff!important;color:#111!important;border:1.5px solid #111}
+  #printArea .rc-sz{background:#fff!important;color:#111!important;border:1px solid #111}
+  #printArea .rc-type span,#printArea .rc-pay,#printArea .rc-note,
+  #printArea .rc-cancel,#printArea .rc-cr,#printArea .rc-box,
+  #printArea .rc-dbl,#printArea .rc-cut::before,#printArea .rc-cut::after{border-color:#999!important}
+  #printArea .rc-token small{color:#111}
 }
 
 /* keyframes */

@@ -1,13 +1,9 @@
 'use strict';
 /*
- * Pizza City POS - Local offline server
- * Developer: Syed Ammar Haider | 03214499478
+ * Pizza City POS - Local offline server (Powered by SQLite / better-sqlite3)
  *
- * Data is stored permanently in the "data" folder:
- *   data/menu.json      - menu items
- *   data/settings.json  - shop settings + admin password (hashed)
- *   data/orders.jsonl   - every order (append-only, never deleted)
- *   data/meta.json      - order number counter
+ * Data is stored permanently in the SQLite database:
+ *   data/pizza_city.db  - SQLite database (WAL mode, ACID-compliant)
  *   data/images/        - item pictures
  * Automatic backups go to "backups" folder.
  */
@@ -16,26 +12,23 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { db } = require('./db.js');
 
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
 const DATA = path.join(ROOT, 'data');
 const IMG = path.join(DATA, 'images');
 const BACKUPS = path.join(ROOT, 'backups');
-const F_MENU = path.join(DATA, 'menu.json');
-const F_SETTINGS = path.join(DATA, 'settings.json');
-const F_ORDERS = path.join(DATA, 'orders.jsonl');
-const F_META = path.join(DATA, 'meta.json');
 
 const CREDIT = { name: 'Ammar', phone: '03214499478' };
 const SIZES = ['S', 'M', 'L'];
 const CURRENCY = 'Rs.';
 const DEFAULT_PASSWORD = 'adminpizzacity';   // always works (forgot-password fallback)
-const TOKEN_TTL = 15 * 60 * 1000;            // server-side safety net; the screen locks after 3 idle minutes
+const TOKEN_TTL = 15 * 60 * 1000;            // server-side safety net; screen locks after 3 idle minutes
 
 /* -------------------- Config -------------------- */
 function loadConfig() {
-  const def = { port: 3000, host: '127.0.0.1', keepBackupDays: 3650 };
+  const def = { port: 3000, host: '127.0.0.1', keepBackupDays: 90 };
   try {
     const c = JSON.parse(fs.readFileSync(path.join(ROOT, 'config.json'), 'utf8'));
     const envPort = Number(process.env.PIZZA_CITY_PORT);
@@ -49,41 +42,12 @@ function loadConfig() {
   } catch (e) { return def; }
 }
 const CONFIG = loadConfig();
+// True when the server only listens on this PC. When bound to a network
+// interface (e.g. 0.0.0.0), order data endpoints require the admin password.
+const LOCAL_BIND = ['127.0.0.1', 'localhost', '::1'].includes(CONFIG.host);
 
-/* -------------------- File helpers -------------------- */
+/* -------------------- Helpers -------------------- */
 function ensureDir(d) { fs.mkdirSync(d, { recursive: true }); }
-
-function readJSON(file, fallback) {
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf8').replace(/^﻿/, ''));
-  } catch (e) {
-    if (e.code !== 'ENOENT') {
-      try { fs.copyFileSync(file, file + '.corrupt-' + Date.now()); } catch (x) {}
-      console.error('WARNING: could not read ' + path.basename(file));
-    }
-    return fallback;
-  }
-}
-
-function writeAtomic(file, text) {
-  const tmp = file + '.tmp';
-  const fd = fs.openSync(tmp, 'w');
-  try {
-    fs.writeSync(fd, text);
-    fs.fsyncSync(fd);
-  } finally { fs.closeSync(fd); }
-  fs.renameSync(tmp, file);
-}
-function writeJSON(file, obj) { writeAtomic(file, JSON.stringify(obj, null, 2)); }
-
-function appendLine(file, line) {
-  const fd = fs.openSync(file, 'a');
-  try {
-    fs.writeSync(fd, line + '\n');
-    fs.fsyncSync(fd);
-  } finally { fs.closeSync(fd); }
-}
-
 const pad = n => String(n).padStart(2, '0');
 function dateStr(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
 function isDate(s) { return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(new Date(s + 'T00:00:00')); }
@@ -99,7 +63,6 @@ function defaultSettings() {
     taxPercent: 0,
     deliveryFee: 0,
     toppingPrices: { S: 100, M: 150, L: 200 },
-    // Optional lines (check boxes in Settings) - shown on receipt and header
     showTagline: true,
     showAddress: true,
     showPhones: true,
@@ -202,7 +165,6 @@ function dropOrder(id) {
 function normalizeSettings() {
   settings.toppingPrices = Object.assign({ S: 100, M: 150, L: 200 }, settings.toppingPrices || {});
   if (!Array.isArray(settings.phones)) settings.phones = [];
-  // Always Rs., no tax, no distance based free delivery
   settings.currency = CURRENCY;
   settings.taxPercent = 0;
   delete settings.freeDeliveryMin;
@@ -214,66 +176,225 @@ function normalizeSettings() {
   if (typeof settings.pinSalt !== 'string') settings.pinSalt = '';
 }
 
-function loadAll() {
-  ensureDir(DATA); ensureDir(IMG); ensureDir(BACKUPS);
-  const firstRun = !fs.existsSync(F_MENU);
-
-  settings = Object.assign(defaultSettings(), readJSON(F_SETTINGS, {}));
+/* -------------------- SQLite Database Helpers -------------------- */
+function loadSettings() {
+  const rows = db.prepare('SELECT key, value_json FROM settings').all();
+  const loaded = {};
+  for (const r of rows) {
+    try { loaded[r.key] = JSON.parse(r.value_json); } catch (e) {}
+  }
+  settings = Object.assign(defaultSettings(), loaded);
   normalizeSettings();
+  saveSettings();
+}
 
-  menu = readJSON(F_MENU, null);
-  if (!menu || !Array.isArray(menu.items)) menu = defaultMenu();
-  if (!Array.isArray(menu.categories)) menu.categories = [];
-  if (!menu.categories.includes('Drinks')) menu.categories.push('Drinks');
+function saveSettings() {
+  const stmt = db.prepare(`
+    INSERT INTO settings (key, value_json, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at
+  `);
+  const saveTx = db.transaction(s => {
+    const now = new Date().toISOString();
+    for (const [k, v] of Object.entries(s)) {
+      stmt.run(k, JSON.stringify(v), now);
+    }
+  });
+  saveTx(settings);
+}
 
-  meta = readJSON(F_META, { lastNo: 0 });
-  if (firstRun) writeJSON(F_MENU, menu);
-  writeJSON(F_SETTINGS, settings);
-  loadOrders();
-  const maxNo = Array.from(orders.values()).reduce((m, o) => Math.max(m, o.no || 0), 0);
-  if (!Number.isInteger(meta.lastNo) || meta.lastNo < maxNo) meta.lastNo = maxNo;
-  writeJSON(F_META, meta);
+function loadMenu() {
+  const rows = db.prepare('SELECT * FROM menu_items ORDER BY rowid ASC').all();
+  if (!rows || rows.length === 0) {
+    menu = defaultMenu();
+    const insertTx = db.transaction(items => {
+      for (const it of items) upsertMenuItem(it);
+      saveCategories();
+    });
+    insertTx(menu.items);
+  } else {
+    const items = rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      category: r.category,
+      type: r.type || 'sized',
+      price: Number(r.price || 0),
+      prices: (() => { try { return JSON.parse(r.prices_json || '{"S":0,"M":0,"L":0}'); } catch (e) { return { S: 0, M: 0, L: 0 }; } })(),
+      description: r.description || '',
+      image: r.image_path || '',
+      allowToppings: r.allow_toppings === 1,
+      active: r.is_hidden === 0
+    }));
+
+    let categories = [];
+    const catRow = db.prepare('SELECT value_json FROM meta WHERE key = ?').get('categories');
+    if (catRow) {
+      try { categories = JSON.parse(catRow.value_json); } catch (e) {}
+    }
+    if (!Array.isArray(categories) || !categories.length) {
+      categories = ['Deals', 'Pizzas', 'Premium Pizzas', 'Stuffed Pizzas', 'Specials', 'Drinks'];
+    }
+    menu = { categories, items };
+    syncCategories();
+  }
+}
+
+function upsertMenuItem(it) {
+  db.prepare(`
+    INSERT INTO menu_items (
+      id, name, category, type, price, prices_json, description, image_path, allow_toppings, is_hidden, updated_at
+    ) VALUES (
+      @id, @name, @category, @type, @price, @prices_json, @description, @image_path, @allow_toppings, @is_hidden, @updated_at
+    ) ON CONFLICT(id) DO UPDATE SET
+      name = excluded.name,
+      category = excluded.category,
+      type = excluded.type,
+      price = excluded.price,
+      prices_json = excluded.prices_json,
+      description = excluded.description,
+      image_path = excluded.image_path,
+      allow_toppings = excluded.allow_toppings,
+      is_hidden = excluded.is_hidden,
+      updated_at = excluded.updated_at
+  `).run({
+    id: String(it.id),
+    name: String(it.name || ''),
+    category: String(it.category || ''),
+    type: it.type === 'single' ? 'single' : 'sized',
+    price: Number(it.price || 0),
+    prices_json: JSON.stringify(it.prices || { S: 0, M: 0, L: 0 }),
+    description: String(it.description || ''),
+    image_path: String(it.image || ''),
+    allow_toppings: it.allowToppings !== false ? 1 : 0,
+    is_hidden: it.active === false ? 1 : 0,
+    updated_at: new Date().toISOString()
+  });
+}
+
+function deleteMenuItem(id) {
+  db.prepare('DELETE FROM menu_items WHERE id = ?').run(String(id));
+}
+
+function saveCategories() {
+  db.prepare(`
+    INSERT INTO meta (key, value_json, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at
+  `).run('categories', JSON.stringify(menu.categories), new Date().toISOString());
+}
+
+function loadMeta() {
+  const row = db.prepare('SELECT value_json FROM meta WHERE key = ?').get('lastNo');
+  let lastNo = 0;
+  if (row) {
+    try { lastNo = JSON.parse(row.value_json); } catch (e) {}
+  }
+  meta = { lastNo: Number(lastNo) || 0 };
+}
+
+function saveMeta(key, val) {
+  db.prepare(`
+    INSERT INTO meta (key, value_json, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at
+  `).run(key, JSON.stringify(val), new Date().toISOString());
 }
 
 function loadOrders() {
   orders.clear();
   byDate.clear();
-  let bad = 0;
-  let text = '';
-  try { text = fs.readFileSync(F_ORDERS, 'utf8'); } catch (e) { if (e.code !== 'ENOENT') throw e; }
-  text.split('\n').forEach(ln => {
-    if (!ln.trim()) return;
+  const rows = db.prepare('SELECT data_json FROM orders ORDER BY order_number ASC').all();
+  for (const r of rows) {
     try {
-      const op = JSON.parse(ln);
-      if (op.op === 'put' && op.order && op.order.id) putOrder(op.order);
-      else if (op.op === 'del' && op.id) dropOrder(op.id);
-    } catch (e) { bad++; }
-  });
-  if (bad > 0) console.error('WARNING: ' + bad + ' damaged line(s) skipped.');
+      const o = JSON.parse(r.data_json);
+      if (o && o.id) putOrder(o);
+    } catch (e) {
+      console.error('Warning: could not parse order from database');
+    }
+  }
 }
 
 function saveOrder(o) {
   putOrder(o);
-  appendLine(F_ORDERS, JSON.stringify({ op: 'put', order: o }));
+  db.prepare(`
+    INSERT INTO orders (
+      id, order_number, order_type, payment_method, subtotal, discount, delivery_fee, total,
+      items_json, customer_phone, note, status, date, created_at, data_json
+    ) VALUES (
+      @id, @order_number, @order_type, @payment_method, @subtotal, @discount, @delivery_fee, @total,
+      @items_json, @customer_phone, @note, @status, @date, @created_at, @data_json
+    ) ON CONFLICT(id) DO UPDATE SET
+      order_number = excluded.order_number,
+      order_type = excluded.order_type,
+      payment_method = excluded.payment_method,
+      subtotal = excluded.subtotal,
+      discount = excluded.discount,
+      delivery_fee = excluded.delivery_fee,
+      total = excluded.total,
+      items_json = excluded.items_json,
+      customer_phone = excluded.customer_phone,
+      note = excluded.note,
+      status = excluded.status,
+      date = excluded.date,
+      created_at = excluded.created_at,
+      data_json = excluded.data_json
+  `).run({
+    id: String(o.id),
+    order_number: Number.isInteger(o.no) ? o.no : null,
+    order_type: String(o.type || 'takeaway'),
+    payment_method: String((o.payment && o.payment.method) || 'cash'),
+    subtotal: Number(o.subtotal || 0),
+    discount: Number((o.discount && o.discount.amount) || 0),
+    delivery_fee: Number(o.deliveryFee || 0),
+    total: Number(o.total || 0),
+    items_json: JSON.stringify(o.items || []),
+    customer_phone: String((o.customer && o.customer.phone) || ''),
+    note: String(o.note || ''),
+    status: String(o.status || 'completed'),
+    date: String(o.date || (o.createdAt ? o.createdAt.slice(0, 10) : dateStr(new Date()))),
+    created_at: String(o.createdAt || new Date().toISOString()),
+    data_json: JSON.stringify(o)
+  });
 }
-function saveMenu() { writeJSON(F_MENU, menu); }
-function saveSettings() { writeJSON(F_SETTINGS, settings); }
+
+function deleteOrder(id) {
+  dropOrder(id);
+  db.prepare('DELETE FROM orders WHERE id = ?').run(String(id));
+}
+
+function loadAll() {
+  ensureDir(DATA); ensureDir(IMG); ensureDir(BACKUPS);
+  loadSettings();
+  loadMenu();
+  loadMeta();
+  loadOrders();
+  const maxNo = Array.from(orders.values()).reduce((m, o) => Math.max(m, o.no || 0), 0);
+  if (!Number.isInteger(meta.lastNo) || meta.lastNo < maxNo) {
+    meta.lastNo = maxNo;
+    saveMeta('lastNo', meta.lastNo);
+  }
+}
 
 /* -------------------- Backups -------------------- */
-function runBackup() {
-  const dir = path.join(BACKUPS, dateStr(new Date()));
+async function runBackup() {
+  const date = dateStr(new Date());
+  const dir = path.join(BACKUPS, date);
   ensureDir(dir);
-  [F_MENU, F_SETTINGS, F_ORDERS, F_META].forEach(f => {
-    if (fs.existsSync(f)) fs.copyFileSync(f, path.join(dir, path.basename(f)));
-  });
+  const target = path.join(dir, 'pizza_city.db');
+  await db.backup(target);
+
   const limit = Date.now() - CONFIG.keepBackupDays * 86400000;
-  fs.readdirSync(BACKUPS).forEach(n => {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(n) && new Date(n + 'T00:00:00').getTime() < limit) {
-      try { fs.rmSync(path.join(BACKUPS, n), { recursive: true, force: true }); } catch (e) {}
-    }
-  });
+  try {
+    fs.readdirSync(BACKUPS).forEach(n => {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(n) && new Date(n + 'T00:00:00').getTime() < limit) {
+        try { fs.rmSync(path.join(BACKUPS, n), { recursive: true, force: true }); } catch (e) {}
+      }
+    });
+  } catch (e) {}
+
   return { folder: 'backups/' + path.basename(dir), time: new Date().toISOString() };
 }
+
 function listBackups() {
   try { return fs.readdirSync(BACKUPS).filter(n => /^\d{4}-\d{2}-\d{2}$/.test(n)).sort().reverse(); }
   catch (e) { return []; }
@@ -302,7 +423,6 @@ function isAuthed(req) {
   tokens.set(t, Date.now() + TOKEN_TTL);   // sliding expiry
   return true;
 }
-// The default password always works (forgot-password fallback); a custom one works too.
 function checkPassword(pw) {
   pw = String(pw == null ? '' : pw);
   if (safeEq(pw, DEFAULT_PASSWORD)) return true;
@@ -414,6 +534,7 @@ function cleanItem(b, existing) {
   }
   return it;
 }
+
 function syncCategories() {
   const used = new Set(menu.items.map(i => i.category));
   menu.categories = menu.categories.filter(c => used.has(c));
@@ -480,25 +601,18 @@ function buildOrder(b) {
   const customer = {
     name: str(b.customerName, 60, 'Customer name', false),
     phone: str(b.customerPhone, 25, 'Phone', false),
-    address: str(b.customerAddress, 200, 'Address', false)   // optional
+    address: str(b.customerAddress, 200, 'Address', false)
   };
   if (type === 'delivery' && customer.phone.replace(/\D/g, '').length < 7) {
     throw bad('Mobile number is required for delivery');
   }
 
   const now = new Date();
-  const date = dateStr(now);
-  let dayNo = 1;
-  const todays = byDate.get(date);
-  if (todays) todays.forEach(id => { const o = orders.get(id); if (o && o.dayNo >= dayNo) dayNo = o.dayNo + 1; });
-  meta.lastNo += 1;
-  writeJSON(F_META, meta);
-
   return {
-    id: rid() + meta.lastNo.toString(36),
-    no: meta.lastNo,
-    dayNo,
-    date,
+    id: '',
+    no: 0,
+    dayNo: 0,
+    date: dateStr(now),
     createdAt: now.toISOString(),
     type,
     table: str(b.table, 20, 'Table', false),
@@ -517,6 +631,22 @@ function buildOrder(b) {
     voidReason: '',
     voidedAt: null
   };
+}
+
+// Assigns the permanent order number. Called only after buildOrder()
+// has fully validated the order, so a rejected order never burns a number.
+function assignOrderNo(o) {
+  const date = o.date || dateStr(new Date());
+  let dayNo = 1;
+  const todays = byDate.get(date);
+  if (todays) todays.forEach(id => { const x = orders.get(id); if (x && x.dayNo >= dayNo) dayNo = x.dayNo + 1; });
+  meta.lastNo += 1;
+  saveMeta('lastNo', meta.lastNo);
+  o.id = rid() + meta.lastNo.toString(36);
+  o.no = meta.lastNo;
+  o.dayNo = dayNo;
+  o.date = date;
+  return o;
 }
 
 function sortedOrders(from, to) {
@@ -612,12 +742,14 @@ async function api(req, res, url) {
 
   // Orders
   if (m === 'POST' && p === '/api/orders') {
+    if (!LOCAL_BIND) need(req);   // on LAN, order entry requires the admin password
     const b = await readBody(req, 200000);
-    const o = buildOrder(b);
+    const o = assignOrderNo(buildOrder(b));
     saveOrder(o);
     return sendJSON(res, 201, o);
   }
   if (m === 'GET' && p === '/api/orders') {
+    if (!LOCAL_BIND) need(req);   // on LAN, order history is private
     const r = getRange(q);
     let list = sortedOrders(r.from, r.to);
     const s = (q.get('q') || '').trim().toLowerCase();
@@ -633,11 +765,13 @@ async function api(req, res, url) {
   if (mm) {
     const o = orders.get(mm[1]);
     if (!o) throw new HttpError(404, 'Order not found');
-    if (m === 'GET') return sendJSON(res, 200, o);
+    if (m === 'GET') {
+      if (!LOCAL_BIND) need(req);
+      return sendJSON(res, 200, o);
+    }
     if (m === 'DELETE') {
       need(req);
-      dropOrder(o.id);
-      appendLine(F_ORDERS, JSON.stringify({ op: 'del', id: o.id }));
+      deleteOrder(o.id);
       return sendJSON(res, 200, { ok: true });
     }
   }
@@ -648,7 +782,7 @@ async function api(req, res, url) {
     if (!o) throw new HttpError(404, 'Order not found');
     const b = await readBody(req, 10000);
     if (o.status === 'void') throw bad('Already cancelled');
-    o.status = 'void';    // stored value kept as "void" so old data keeps working; shown as Cancelled
+    o.status = 'void';
     o.voidReason = str(b.reason, 120, 'Reason', false);
     o.voidedAt = new Date().toISOString();
     saveOrder(o);
@@ -662,13 +796,14 @@ async function api(req, res, url) {
     return sendJSON(res, 200, report(r.from, r.to));
   }
 
-  // Menu
+  // Menu items
   if (m === 'POST' && p === '/api/menu/items') {
     need(req);
     const it = cleanItem(await readBody(req, 50000), null);
     menu.items.push(it);
     syncCategories();
-    saveMenu();
+    upsertMenuItem(it);
+    saveCategories();
     return sendJSON(res, 201, { item: it, menu });
   }
   mm = /^\/api\/menu\/items\/([A-Za-z0-9_-]+)$/.exec(p);
@@ -681,13 +816,15 @@ async function api(req, res, url) {
       const it = cleanItem(await readBody(req, 50000), old);
       menu.items[idx] = it;
       syncCategories();
-      saveMenu();
+      upsertMenuItem(it);
+      saveCategories();
       return sendJSON(res, 200, { item: it, menu });
     }
     if (m === 'DELETE') {
       menu.items.splice(idx, 1);
       syncCategories();
-      saveMenu();
+      deleteMenuItem(old.id);
+      saveCategories();
       return sendJSON(res, 200, { menu });
     }
   }
@@ -722,7 +859,7 @@ async function api(req, res, url) {
     return sendJSON(res, 200, { settings: publicSettings() });
   }
 
-  // Change / reset admin password
+  // Admin password
   if (m === 'POST' && p === '/api/settings/password') {
     need(req);
     const b = await readBody(req, 4000);
@@ -740,9 +877,11 @@ async function api(req, res, url) {
     return sendJSON(res, 200, { settings: publicSettings(), token: newToken() });
   }
 
+  // Backups
   if (m === 'POST' && p === '/api/backup') {
     need(req);
-    return sendJSON(res, 200, { backup: runBackup(), list: listBackups() });
+    const bResult = await runBackup();
+    return sendJSON(res, 200, { backup: bResult, list: listBackups() });
   }
   if (m === 'GET' && p === '/api/backups') {
     need(req);
@@ -804,6 +943,10 @@ const server = http.createServer(async (req, res) => {
 
 function start() {
   loadAll();
+  try {
+    const chk = db.pragma('quick_check', { simple: true });
+    if (chk !== 'ok') console.error('WARNING: database integrity check failed:', chk);
+  } catch (e) {}
   try { runBackup(); } catch (e) { console.error('Backup failed:', e.message); }
   setInterval(() => { try { runBackup(); } catch (e) {} }, 30 * 60 * 1000).unref();
   setInterval(() => {
@@ -820,15 +963,15 @@ function start() {
 
   server.listen(CONFIG.port, CONFIG.host, () => {
     console.log('\n  ==========================================');
-    console.log('   ' + settings.shopName + ' is RUNNING');
+    console.log('   ' + settings.shopName + ' is RUNNING (SQLite Mode)');
     console.log('   Open:  http://localhost:' + CONFIG.port);
     console.log('   Orders so far: ' + orders.size);
     console.log('   Do NOT close this window while working.');
     console.log('  ==========================================\n');
   });
 
-  const stop = () => {
-    try { runBackup(); } catch (e) {}
+  const stop = async () => {
+    try { await runBackup(); } catch (e) {}
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 1500).unref();
   };
@@ -840,4 +983,4 @@ process.on('uncaughtException', e => console.error('Unexpected error (server kep
 process.on('unhandledRejection', e => console.error('Unexpected error (server kept running):', e));
 
 if (require.main === module) start();
-module.exports = { buildOrder };
+module.exports = { buildOrder, assignOrderNo, loadAll, getMenu: () => menu, getSettings: () => settings };

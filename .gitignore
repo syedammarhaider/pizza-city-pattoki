@@ -1,0 +1,7 @@
+node_modules/
+*.log
+*.tmp
+
+# Live shop data - never commit (contains customer PII and sales history)
+data/
+backups/
